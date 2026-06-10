@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/idiomatic-core", "crates/idiomatic-cli"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+ast-grep-config = "0.43"
+ast-grep-core = "0.43"
+ast-grep-language = "0.43"
+serde = { version = "1", features = ["derive"] }
+serde_yaml_ng = "0.10"
+thiserror = "2"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+dirs = "5"
+insta = { version = "1", features = ["yaml"] }
+assert_cmd = "2"

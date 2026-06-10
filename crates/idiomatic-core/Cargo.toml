@@ -1,0 +1,16 @@
+[package]
+name = "idiomatic-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+ast-grep-config.workspace = true
+ast-grep-core.workspace = true
+ast-grep-language.workspace = true
+serde.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

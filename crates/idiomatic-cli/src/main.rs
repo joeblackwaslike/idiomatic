@@ -1,6 +1,7 @@
 mod cascade;
 mod check;
 mod hook;
+mod install_hook;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -26,6 +27,11 @@ enum Command {
     },
     /// Claude Code PostToolUse gate: autofix the touched file, instruct on the rest.
     Hook,
+    /// Install the PostToolUse hook into a Claude Code settings.json.
+    InstallHook {
+        #[arg(long, default_value = ".claude/settings.json")]
+        settings: PathBuf,
+    },
 }
 
 fn main() -> Result<ExitCode> {
@@ -40,5 +46,9 @@ fn main() -> Result<ExitCode> {
             })
         }
         Command::Hook => hook::run(),
+        Command::InstallHook { settings } => {
+            install_hook::run(&settings)?;
+            Ok(ExitCode::SUCCESS)
+        }
     }
 }

@@ -108,10 +108,18 @@ fork.
 
 ## 5. The Idiom Pack (core artifact)
 
-One idiom = one YAML record. A pack is a directory of idiom records plus a
-manifest (`pack.yaml`: name, language, version).
+One idiom = one YAML document. A pack is a **single YAML file** containing
+multiple documents separated by the `---` delimiter on its own line. The **first
+document is the pack manifest** (`name`, `language`, `version`); every subsequent
+document is one idiom record. This keeps an entire language's idiom set in one
+reviewable, diff-friendly file rather than a directory tree.
 
 ```yaml
+# python-core.yaml
+name: python-core
+language: python
+version: 0.1.0
+---
 id: no-range-len
 language: python
 title: "Use enumerate instead of range(len(...))"
@@ -127,6 +135,8 @@ skill_prose: |             # rendered into the skill; optional, falls back to wh
 examples:                  # optional; feed both the skill and the rule's tests
   bad:  "for i in range(len(items)):"
   good: "for i, item in enumerate(items):"
+---
+# ...next idiom document follows, and so on
 ```
 
 ### Field semantics

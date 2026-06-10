@@ -1,5 +1,6 @@
 mod cascade;
 mod check;
+mod hook;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -23,6 +24,8 @@ enum Command {
         /// Files to check.
         paths: Vec<PathBuf>,
     },
+    /// Claude Code PostToolUse gate: autofix the touched file, instruct on the rest.
+    Hook,
 }
 
 fn main() -> Result<ExitCode> {
@@ -36,5 +39,6 @@ fn main() -> Result<ExitCode> {
                 ExitCode::SUCCESS
             })
         }
+        Command::Hook => hook::run(),
     }
 }

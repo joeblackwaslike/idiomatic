@@ -57,6 +57,6 @@ fn report(set: &IdiomSet, hits: Vec<Hit>, path: &Path, had_error: &mut bool) {
         if idiom.severity == Severity::Error {
             *had_error = true;
         }
-        println!("{}: [{}] {} — {}", path.display(), hit.id, idiom.title, idiom.why);
+        println!("{}: {}", path.display(), idiomatic_core::render::render_diagnostic(idiom));
     }
 }

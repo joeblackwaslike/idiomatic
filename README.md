@@ -8,9 +8,9 @@ mechanically-decidable violations in place instead of bouncing the agent through
 rewrite loops. The same idiom packs back a `check` CLI for pre-commit and CI, so
 humans and agents are held to one ruleset.
 
-> **Status:** Core foundation (build-order steps 1–3). The live PostToolUse hook,
-> skill generation, the Python (PyO3) binding, and a TypeScript pack are
-> follow-on work. See [the design spec](docs/superpowers/specs/2026-06-09-idiomatic-framework-design.md).
+> **Status:** Python agent loop complete (build-order steps 1–5). The Python
+> (PyO3) binding and a TypeScript pack are follow-on work. See
+> [the design spec](docs/superpowers/specs/2026-06-09-idiomatic-framework-design.md).
 
 ## What works today
 
@@ -24,6 +24,13 @@ humans and agents are held to one ruleset.
   fixtures: `bad` must trip, `good` must pass, and `autofix(bad)` must equal
   `good`. Bad idioms can't ship.
 - **`idiomatic check`** — lint a path set against the resolved cascade.
+- **`idiomatic hook`** — the live PostToolUse gate (the "enforce in-loop" half):
+  autofixes the touched file in place, and only feeds the rare `warn-and-instruct`
+  violation back to the agent. Install with `idiomatic install-hook`.
+- **`idiomatic skill-gen`** — renders the resolved idioms as a Claude Code skill
+  (the "teach up front" half), so the agent writes idiomatic code the first time.
+- **Telemetry** — each hook trip is appended to `~/.idiomatic/telemetry.jsonl`
+  (`{idiom_id, file, fix_policy, ts}`) to power trip-count ranking later.
 
 ## Usage
 
@@ -33,7 +40,18 @@ idiomatic check src/
 
 # Apply autofixes in place and report what can't be auto-fixed:
 idiomatic check --fix src/
+
+# Generate the teaching skill for a language (stdout, or --out <dir> writes SKILL.md):
+idiomatic skill-gen python
+
+# Install the live PostToolUse gate into a Claude Code settings.json:
+idiomatic install-hook            # defaults to .claude/settings.json
 ```
+
+Once installed, `idiomatic hook` fires after every Write/Edit: it silently
+autofixes what it can and only interrupts the agent for a `warn-and-instruct`
+violation. Disable telemetry with `IDIOMATIC_NO_TELEMETRY=1` or redirect it with
+`IDIOMATIC_TELEMETRY=<path>`.
 
 Example, on a file containing `if x == None:` and `print(x)`:
 

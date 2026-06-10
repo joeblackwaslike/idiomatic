@@ -50,9 +50,10 @@ pub fn run() -> Result<ExitCode> {
     }
 
     let set = load_cascade()?;
+    // skill-only idioms have no detector and are never evaluated in the gate (§7.4).
     let compiled: Vec<CompiledIdiom> = set
         .iter()
-        .filter(|i| support_lang(&i.language) == Some(lang))
+        .filter(|i| support_lang(&i.language) == Some(lang) && i.fix_policy != FixPolicy::SkillOnly)
         .filter_map(|i| CompiledIdiom::compile(i).ok())
         .collect();
 

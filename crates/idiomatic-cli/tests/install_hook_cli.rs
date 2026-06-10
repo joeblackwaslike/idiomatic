@@ -25,5 +25,5 @@ fn install_hook_merges_idempotently() {
     let post = v["hooks"]["PostToolUse"].as_array().unwrap();
     assert_eq!(post.len(), 1); // idempotent
     assert!(post[0].to_string().contains("idiomatic hook"));
-    assert!(post[0].to_string().contains("Write|Edit"));
+    assert!(post[0].to_string().contains("Write|Edit|MultiEdit"));
 }

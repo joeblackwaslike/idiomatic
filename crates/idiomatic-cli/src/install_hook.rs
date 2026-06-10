@@ -27,7 +27,7 @@ pub fn run(settings_path: &Path) -> Result<()> {
     let already = post.iter().any(|e| e.to_string().contains("idiomatic hook"));
     if !already {
         post.push(serde_json::json!({
-            "matcher": "Write|Edit",
+            "matcher": "Write|Edit|MultiEdit",
             "hooks": [ { "type": "command", "command": "idiomatic hook" } ]
         }));
     }

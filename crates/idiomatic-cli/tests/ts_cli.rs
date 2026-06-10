@@ -8,7 +8,7 @@ fn tmp(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn check_fix_rewrites_a_typescript_file() {
+fn check_reports_warn_idioms_without_fixing() {
     let file = tmp("a.ts");
     fs::write(&file, "if (a == b) {\n  return;\n}\n").unwrap();
 
@@ -16,9 +16,11 @@ fn check_fix_rewrites_a_typescript_file() {
         .unwrap()
         .args(["check", "--fix", file.to_str().unwrap()])
         .assert()
-        .success();
+        .success()
+        .stdout(predicates::str::contains("triple-equals"));
 
-    assert_eq!(fs::read_to_string(&file).unwrap(), "if (a === b) {\n  return;\n}\n");
+    // warn-and-instruct never rewrites, even with --fix
+    assert_eq!(fs::read_to_string(&file).unwrap(), "if (a == b) {\n  return;\n}\n");
 }
 
 #[test]

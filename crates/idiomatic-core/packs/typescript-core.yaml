@@ -7,10 +7,9 @@ language: typescript
 title: "Use `===` instead of `==`"
 why: "`==` does type coercion with surprising rules; `===` compares without coercion and is the TS/JS idiom."
 severity: warn
-fix_policy: autofix
+fix_policy: warn-and-instruct
 rule:
   pattern: "$A == $B"
-fix: "$A === $B"
 skill_prose: |
   Always compare with `===` / `!==`, never `==` / `!=`. Loose equality coerces
   operands with rules almost nobody remembers; strict equality says exactly what
@@ -25,10 +24,9 @@ language: typescript
 title: "Use optional chaining instead of `a && a.b`"
 why: "`a?.b` is shorter, communicates intent, and avoids the truthiness pitfalls of `&&` guards."
 severity: warn
-fix_policy: autofix
+fix_policy: warn-and-instruct
 rule:
   pattern: "$A && $A.$B"
-fix: "$A?.$B"
 examples:
   bad: "const name = user && user.name;"
   good: "const name = user?.name;"

@@ -8,12 +8,17 @@ mechanically-decidable violations in place instead of bouncing the agent through
 rewrite loops. The same idiom packs back a `check` CLI for pre-commit and CI, so
 humans and agents are held to one ruleset.
 
-> **Status:** Python agent loop complete (build-order steps 1–5). The Python
-> (PyO3) binding and a TypeScript pack are follow-on work. See
+> **Status:** Two reference languages ship — **Python and TypeScript** — proving
+> the language-abstraction thesis (build-order steps 1–5 + 7). The Python (PyO3)
+> binding and a Node binding + CI recipe are follow-on work. See
 > [the design spec](docs/superpowers/specs/2026-06-09-idiomatic-framework-design.md).
 
 ## What works today
 
+- **Two reference languages** — `python-core` and `typescript-core` ship as seed
+  packs; `check`/`hook`/`skill-gen` all work for `.py` and `.ts`. Adding a language
+  is authoring a pack, not changing the core (TypeScript was one source line + a
+  YAML pack).
 - **Idiom packs** — a single multi-document YAML file per language: a manifest
   document followed by one document per idiom. Loaded, validated, and resolved
   through a `base → user → project` cascade with field-level merge by `id`.

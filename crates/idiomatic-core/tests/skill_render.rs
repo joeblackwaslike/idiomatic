@@ -23,3 +23,20 @@ fn renders_python_skill_from_seed_pack() {
     assert!(skill.contains("# Avoid:"));
     assert!(skill.contains("# Prefer:"));
 }
+
+#[test]
+fn renders_typescript_skill_from_seed_pack() {
+    let packs: Vec<idiomatic_core::pack::LoadedPack> = idiomatic_core::builtin_packs()
+        .iter()
+        .map(|(_, yaml)| idiomatic_core::pack::LoadedPack::from_yaml_str(yaml, idiomatic_core::Layer::Base).unwrap())
+        .collect();
+    let set = idiomatic_core::resolve::resolve(&packs).unwrap();
+
+    let skill = idiomatic_core::render::render_skill(&set, "typescript");
+
+    assert!(skill.contains("name: idiomatic-typescript"));
+    assert!(skill.contains("Use `===` instead of `==`"));
+    assert!(skill.contains("```typescript"));
+    // python idioms must NOT leak into the typescript skill
+    assert!(!skill.contains("Use `is None`"));
+}

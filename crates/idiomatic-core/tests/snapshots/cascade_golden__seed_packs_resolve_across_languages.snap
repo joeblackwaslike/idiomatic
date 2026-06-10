@@ -7,3 +7,7 @@ expression: ids
 - negated-in
 - print-debugging
 - flatten-nesting
+- triple-equals
+- optional-chaining
+- no-console
+- prefer-named-exports

@@ -19,5 +19,8 @@ pub enum Layer {
 
 /// The seed packs shipped with the binary (the cascade's `base` layer).
 pub fn builtin_packs() -> &'static [(&'static str, &'static str)] {
-    &[("python-core", include_str!("../packs/python-core.yaml"))]
+    &[
+        ("python-core", include_str!("../packs/python-core.yaml")),
+        ("typescript-core", include_str!("../packs/typescript-core.yaml")),
+    ]
 }

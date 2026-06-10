@@ -121,11 +121,23 @@ pub fn autofix_source(
         }
     }
 
-    let count = edits.len();
-    // Apply right-to-left so earlier offsets stay valid as we splice.
-    edits.sort_by_key(|e| std::cmp::Reverse(e.0));
+    // Greedy non-overlap selection: edits were collected against original
+    // offsets, so right-to-left splicing is only valid for disjoint ranges.
+    // When matches overlap/nest, keep the first (leftmost) and skip the rest;
+    // a re-lint pass (CLI/hook) catches anything deferred.
+    edits.sort_by_key(|e| (e.0, e.1));
+    let mut kept: Vec<(usize, usize, String)> = Vec::new();
+    let mut last_end = 0;
+    for e in edits {
+        if e.0 >= last_end {
+            last_end = e.1;
+            kept.push(e);
+        }
+    }
+    let count = kept.len();
+    kept.sort_by_key(|e| std::cmp::Reverse(e.0));
     let mut out = source.to_string();
-    for (start, end, text) in edits {
+    for (start, end, text) in kept {
         out.replace_range(start..end, &text);
     }
     (out, count)
@@ -180,5 +192,49 @@ mod tests {
             autofix_source(&compiled, SupportLang::Python, "if x is None:\n    pass\n");
         assert_eq!(applied, 0);
         assert_eq!(fixed, "if x is None:\n    pass\n");
+    }
+
+    /// Regression test for overlapping / nested edit ranges.
+    ///
+    /// idiom A matches `foo($A)` → `FOO($A)` (spans the whole expression)
+    /// idiom B matches `$X == None` → `$X is None` (nested inside A's match)
+    ///
+    /// With greedy leftmost-wins selection, A is kept (starts at 0) and B is
+    /// skipped (its range is inside A's range).  count must equal 1 and the
+    /// output must equal `"FOO(a == None)\n"` — no bytes dropped or duplicated.
+    #[test]
+    fn overlapping_edits_are_handled_without_corruption() {
+        let rule_a: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str("pattern: \"foo($A)\"").unwrap();
+        let idiom_a = Idiom {
+            id: "wrap-foo".into(),
+            language: "python".into(),
+            title: "Uppercase FOO".into(),
+            why: "test".into(),
+            severity: Severity::Warn,
+            fix_policy: FixPolicy::Autofix,
+            rule: Some(rule_a),
+            fix: Some("FOO($A)".into()),
+            skill_prose: None,
+            examples: None,
+            provenance: BTreeMap::new(),
+        };
+
+        let compiled = vec![
+            CompiledIdiom::compile(&idiom_a).unwrap(),
+            CompiledIdiom::compile(&compare_none()).unwrap(),
+        ];
+
+        let input = "foo(a == None)\n";
+        let (out, count) = autofix_source(&compiled, SupportLang::Python, input);
+
+        // Greedy leftmost-wins: the outer foo(...) edit is kept (starts at 0),
+        // the nested `a == None` edit is skipped.
+        // count must equal the number of edits actually applied — no phantom counts.
+        assert_eq!(count, 1, "count must equal edits actually applied, got {count}");
+        assert_eq!(
+            out, "FOO(a == None)\n",
+            "output must be a clean non-corrupted rewrite, got {out:?}"
+        );
     }
 }

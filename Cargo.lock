@@ -444,6 +444,8 @@ dependencies = [
  "dirs",
  "idiomatic-core",
  "predicates",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -455,6 +457,7 @@ dependencies = [
  "ast-grep-language",
  "insta",
  "serde",
+ "serde_json",
  "serde_yaml_ng",
  "thiserror 2.0.18",
 ]

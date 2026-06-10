@@ -1,0 +1,61 @@
+name: typescript-core
+language: typescript
+version: 0.1.0
+---
+id: triple-equals
+language: typescript
+title: "Use `===` instead of `==`"
+why: "`==` does type coercion with surprising rules; `===` compares without coercion and is the TS/JS idiom."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A == $B"
+skill_prose: |
+  Always compare with `===` / `!==`, never `==` / `!=`. Loose equality coerces
+  operands with rules almost nobody remembers; strict equality says exactly what
+  you mean. (The one classic exception — `x == null` to catch both `null` and
+  `undefined` — is better written explicitly.)
+examples:
+  bad: "if (a == b) {\n  return;\n}"
+  good: "if (a === b) {\n  return;\n}"
+---
+id: optional-chaining
+language: typescript
+title: "Use optional chaining instead of `a && a.b`"
+why: "`a?.b` is shorter, communicates intent, and avoids the truthiness pitfalls of `&&` guards."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A && $A.$B"
+examples:
+  bad: "const name = user && user.name;"
+  good: "const name = user?.name;"
+---
+id: no-console
+language: typescript
+title: "Use a logger instead of `console.log` for diagnostics"
+why: "console.log can't be leveled, filtered, or routed and tends to ship to production. There is no single safe rewrite."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "console.log($$$ARGS)"
+skill_prose: |
+  Reach for a real logger (pino, winston, or your app's logging module) instead of
+  `console.log` for anything diagnostic, so output can be leveled and routed and
+  doesn't leak to production stdout.
+examples:
+  bad: "console.log(\"value\", value);"
+  good: "logger.debug(\"value\", value);"
+---
+id: prefer-named-exports
+language: typescript
+title: "Prefer named exports over a default export"
+why: "Named exports give every consumer the same name, enable safe renames and tree-shaking, and avoid default-export refactor friction. Judgment call, no detector."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Prefer named exports (`export const x`, `export function f`) over `export
+  default`. Named exports keep one canonical name across the codebase, make
+  rename-symbol and auto-import reliable, and avoid the default-export quirks with
+  re-exports and tree-shaking. This is a design judgment, so it's taught, not
+  enforced.

@@ -1,0 +1,9 @@
+---
+source: crates/idiomatic-core/tests/cascade_golden.rs
+assertion_line: 14
+expression: ids
+---
+- compare-none
+- negated-in
+- print-debugging
+- flatten-nesting

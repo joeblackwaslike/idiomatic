@@ -1,0 +1,59 @@
+name: python-core
+language: python
+version: 0.1.0
+---
+id: compare-none
+language: python
+title: "Use `is None` instead of `== None`"
+why: "None is a singleton; identity comparison is correct, faster, and idiomatic."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "$X == None"
+fix: "$X is None"
+skill_prose: |
+  Compare with `is None` / `is not None`, never `== None`. `None` is a singleton,
+  so identity is what you actually mean, and `==` can be overridden by `__eq__`.
+examples:
+  bad: "if x == None:\n    pass"
+  good: "if x is None:\n    pass"
+---
+id: negated-in
+language: python
+title: "Use `not in` instead of `not x in y`"
+why: "`not in` is a single operator that reads naturally; `not (x in y)` is noisier."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "not $X in $Y"
+fix: "$X not in $Y"
+examples:
+  bad: "if not key in mapping:\n    pass"
+  good: "if key not in mapping:\n    pass"
+---
+id: print-debugging
+language: python
+title: "Use logging instead of `print` for diagnostics"
+why: "print() can't be filtered, leveled, or routed; logging can. There is no single safe rewrite."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "print($$$ARGS)"
+skill_prose: |
+  Reach for the `logging` module instead of `print` for anything diagnostic.
+  Get a module logger with `logger = logging.getLogger(__name__)` and call
+  `logger.debug(...)` / `logger.info(...)` so output can be leveled and routed.
+examples:
+  bad: "print(\"value is\", value)"
+  good: "logger.debug(\"value is %s\", value)"
+---
+id: flatten-nesting
+language: python
+title: "Flatten deep nesting with guard clauses"
+why: "More than ~3 levels of nesting is a readability smell; early returns flatten it. Judgment call, no detector."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function nests more than about three levels deep, invert conditions and
+  return early (guard clauses) so the happy path stays at the left margin. This is
+  a judgment call — there is no mechanical rewrite, so it is taught, not enforced.

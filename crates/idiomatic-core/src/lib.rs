@@ -6,6 +6,8 @@ pub mod resolve;
 pub mod validate;
 pub mod engine;
 pub mod selftest;
+pub mod render;
+pub mod telemetry;
 
 /// A configuration layer, lowest to highest precedence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

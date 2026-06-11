@@ -1,9 +1,9 @@
-# Run `idiomatic check` in CI. This is both this repo's own idiom gate and a
-# copy-paste example for downstream repositories.
+# Dogfood: run `idiomatic check` on this repo. Builds from source so it's
+# self-contained (no release dependency).
 #
-# NOTE: the install step downloads a prebuilt binary from GitHub Releases, so it
-# works once a release has been published (see release.yml). Replace OWNER with
-# the real GitHub owner when wiring up the remote.
+# DOWNSTREAM repos should instead install the prebuilt binary — see the README
+# and the install step in the README's CI snippet:
+#   curl -LsSf https://github.com/joeblackwaslike/idiomatic/releases/latest/download/idiomatic-cli-installer.sh | sh
 name: idiomatic
 
 on:
@@ -17,16 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install idiomatic (prebuilt)
-        run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/joeblackwaslike/idiomatic/releases/latest/download/idiomatic-cli-installer.sh | sh
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build idiomatic
+        run: cargo build --release -p idiomatic-cli
       - name: Run idiomatic check
         run: |
-          files=$(git ls-files '*.py' '*.ts')
+          files=$(git ls-files '*.py' '*.ts' '*.tsx')
           if [ -n "$files" ]; then
-            idiomatic check $files
+            ./target/release/idiomatic check $files
           else
             echo "no python/typescript files to check"
           fi

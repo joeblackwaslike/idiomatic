@@ -81,8 +81,12 @@ jobs:
         with:
           path: crates/idiomatic-node/artifacts
       - name: Move binaries into per-platform npm packages
+        run: napi artifacts --output-dir artifacts --dist npm
+      - name: Publish per-platform packages
         run: napi prepublish -t npm --skip-gh-release
-      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish root package
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

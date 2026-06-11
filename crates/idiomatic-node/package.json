@@ -1,0 +1,27 @@
+{
+  "name": "idiomatic-node",
+  "version": "0.1.0",
+  "description": "Idiom enforcement for Python and TypeScript — lint, autofix, and skill generation.",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "idiomatic",
+    "targets": [
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc"
+    ]
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3"
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "test": "node --test"
+  },
+  "engines": { "node": ">= 16" }
+}

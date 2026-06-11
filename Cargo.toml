@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/idiomatic-core", "crates/idiomatic-cli", "crates/idiomatic-py"]
+members = ["crates/idiomatic-core", "crates/idiomatic-cli", "crates/idiomatic-py", "crates/idiomatic-node"]
 
 [workspace.package]
 edition = "2021"
@@ -21,3 +21,6 @@ insta = { version = "1", features = ["yaml"] }
 assert_cmd = "2"
 serde_json = "1"
 pyo3 = { version = "0.28", features = ["abi3-py39"] }
+napi = { version = "3", default-features = false, features = ["napi4"] }
+napi-derive = "3"
+napi-build = "2"

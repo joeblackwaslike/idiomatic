@@ -23,6 +23,16 @@ pub fn check_invariants(idiom: &Idiom) -> Result<(), ResolveError> {
         }
         _ => {}
     }
+
+    // §10: fail loud at load if the rule doesn't compile. Skill-only idioms have
+    // no rule, so they're naturally excluded.
+    if idiom.rule.is_some() {
+        crate::engine::CompiledIdiom::compile(idiom).map_err(|e| ResolveError::RuleCompile {
+            id: id(),
+            message: e.to_string(),
+        })?;
+    }
+
     Ok(())
 }
 
@@ -35,6 +45,11 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn idiom(fix_policy: FixPolicy, rule: bool, fix: Option<&str>) -> Idiom {
+        // Use a real, compilable rule when `rule` is true so that the
+        // RuleCompile check doesn't trip on a sentinel Null value.
+        let rule_val = rule.then(|| {
+            serde_yaml_ng::from_str::<serde_yaml_ng::Value>("pattern: \"$X == None\"").unwrap()
+        });
         Idiom {
             id: "x".into(),
             language: "python".into(),
@@ -42,7 +57,7 @@ mod tests {
             why: "w".into(),
             severity: Severity::Error,
             fix_policy,
-            rule: rule.then(|| serde_yaml_ng::Value::Null),
+            rule: rule_val,
             fix: fix.map(String::from),
             skill_prose: None,
             examples: None,
@@ -76,5 +91,49 @@ mod tests {
     #[test]
     fn valid_autofix_passes() {
         assert!(check_invariants(&idiom(FixPolicy::Autofix, true, Some("y"))).is_ok());
+    }
+
+    /// An idiom with a rule that doesn't compile should fail with RuleCompile.
+    #[test]
+    fn bad_rule_returns_rule_compile_error() {
+        // "($" is an unbalanced pattern that ast-grep rejects.
+        let rule: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str("pattern: \"($\"").unwrap();
+        let i = Idiom {
+            id: "bad-rule".into(),
+            language: "python".into(),
+            title: "t".into(),
+            why: "w".into(),
+            severity: Severity::Error,
+            fix_policy: FixPolicy::WarnAndInstruct,
+            rule: Some(rule),
+            fix: None,
+            skill_prose: None,
+            examples: None,
+            provenance: BTreeMap::new(),
+        };
+        let err = check_invariants(&i).unwrap_err();
+        assert!(matches!(err, ResolveError::RuleCompile { .. }));
+    }
+
+    /// An idiom with a syntactically valid rule should still pass.
+    #[test]
+    fn valid_rule_passes_invariants() {
+        let rule: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str("pattern: \"$X == None\"").unwrap();
+        let i = Idiom {
+            id: "good-rule".into(),
+            language: "python".into(),
+            title: "t".into(),
+            why: "w".into(),
+            severity: Severity::Error,
+            fix_policy: FixPolicy::WarnAndInstruct,
+            rule: Some(rule),
+            fix: None,
+            skill_prose: None,
+            examples: None,
+            provenance: BTreeMap::new(),
+        };
+        assert!(check_invariants(&i).is_ok());
     }
 }

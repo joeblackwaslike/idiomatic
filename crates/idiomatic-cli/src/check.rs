@@ -46,6 +46,16 @@ pub fn run(paths: &[PathBuf], fix: bool) -> Result<CheckOutcome> {
     Ok(CheckOutcome { had_error_severity })
 }
 
+/// Report hits for a single file, updating the global error flag.
+///
+/// # Exit-code contract
+///
+/// `idiomatic check` exits **non-zero (1)** if and only if at least one
+/// **`error`-severity** violation remains after any autofix pass.
+/// `warn` and `info` severity violations are advisory: they are reported on
+/// stdout but do **not** cause a non-zero exit.  This mirrors the convention
+/// used by linters such as ESLint and Clippy where warnings are informational
+/// and errors are gate-breakers in CI.
 fn report(set: &IdiomSet, hits: Vec<Hit>, path: &Path, had_error: &mut bool) {
     for hit in hits {
         let Some(idiom) = set.get(&hit.id) else {

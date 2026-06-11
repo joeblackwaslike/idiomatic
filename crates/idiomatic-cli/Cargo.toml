@@ -3,6 +3,7 @@ name = "idiomatic-cli"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "idiomatic"

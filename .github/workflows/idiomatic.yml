@@ -1,0 +1,32 @@
+# Run `idiomatic check` in CI. This is both this repo's own idiom gate and a
+# copy-paste example for downstream repositories.
+#
+# NOTE: the install step downloads a prebuilt binary from GitHub Releases, so it
+# works once a release has been published (see release.yml). Replace OWNER with
+# the real GitHub owner when wiring up the remote.
+name: idiomatic
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install idiomatic (prebuilt)
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/joeblackwaslike/idiomatic/releases/latest/download/idiomatic-cli-installer.sh | sh
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Run idiomatic check
+        run: |
+          files=$(git ls-files '*.py' '*.ts')
+          if [ -n "$files" ]; then
+            idiomatic check $files
+          else
+            echo "no python/typescript files to check"
+          fi

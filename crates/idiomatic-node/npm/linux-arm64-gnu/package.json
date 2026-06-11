@@ -1,0 +1,22 @@
+{
+  "name": "idiomatic-node-linux-arm64-gnu",
+  "version": "0.1.0",
+  "cpu": [
+    "arm64"
+  ],
+  "main": "idiomatic.linux-arm64-gnu.node",
+  "files": [
+    "idiomatic.linux-arm64-gnu.node"
+  ],
+  "description": "Idiom enforcement for Python and TypeScript — lint, autofix, and skill generation.",
+  "license": "MIT",
+  "engines": {
+    "node": ">= 16"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}

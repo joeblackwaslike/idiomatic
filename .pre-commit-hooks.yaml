@@ -1,0 +1,30 @@
+# pre-commit hooks for idiomatic. Consume from another repo with:
+#
+#   repos:
+#     - repo: https://github.com/joeblackwaslike/idiomatic
+#       rev: v0.1.0
+#       hooks:
+#         - id: idiomatic
+#
+# `language: system` means the `idiomatic` binary must be on PATH. Install it via
+# the prebuilt installer (see the project README), `cargo install idiomatic-cli`,
+# or a package manager.
+
+- id: idiomatic
+  name: idiomatic (report)
+  description: Report idiom violations; exits non-zero on error-severity hits.
+  entry: idiomatic check
+  language: system
+  types_or: [python, ts]
+  require_serial: false
+
+- id: idiomatic-fix
+  name: idiomatic (autofix)
+  description: >-
+    Autofix idiom violations in place, then report what remains. NOTE: the CLI
+    currently exits 0 even after applying fixes, so this hook autofixes but does
+    not by itself block the commit on changes (tracked as a CLI enhancement).
+  entry: idiomatic check --fix
+  language: system
+  types_or: [python, ts]
+  require_serial: false

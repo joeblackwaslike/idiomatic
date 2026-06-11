@@ -1,11 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/idiomatic-core", "crates/idiomatic-cli", "crates/idiomatic-py"]
+members = ["crates/idiomatic-core", "crates/idiomatic-cli", "crates/idiomatic-py", "crates/idiomatic-node"]
 
 [workspace.package]
 edition = "2021"
 license = "MIT"
 version = "0.1.0"
+repository = "https://github.com/joeblackwaslike/idiomatic"
 
 [workspace.dependencies]
 ast-grep-config = "0.43"
@@ -21,3 +22,11 @@ insta = { version = "1", features = ["yaml"] }
 assert_cmd = "2"
 serde_json = "1"
 pyo3 = { version = "0.28", features = ["abi3-py39"] }
+napi = { version = "3", default-features = false, features = ["napi4"] }
+napi-derive = "3"
+napi-build = "2"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

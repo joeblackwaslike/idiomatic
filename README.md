@@ -8,9 +8,11 @@ mechanically-decidable violations in place instead of bouncing the agent through
 rewrite loops. The same idiom packs back a `check` CLI for pre-commit and CI, so
 humans and agents are held to one ruleset.
 
-> **Status:** Two reference languages (**Python and TypeScript**) and a **Python
-> (PyO3) binding** ship (build-order steps 1–7). A Node binding + CI wheel
-> publishing remain follow-on. See
+> **Status:** All eight build-order steps are implemented — two reference
+> languages (**Python and TypeScript**), **Python (PyO3)** and **Node (napi)**
+> bindings, and a prebuilt-binary + pre-commit + CI distribution story. The
+> release/publish workflows activate on the first tagged release once a Git
+> remote is configured. See
 > [the design spec](docs/superpowers/specs/2026-06-09-idiomatic-framework-design.md).
 
 ## What works today
@@ -39,6 +41,25 @@ humans and agents are held to one ruleset.
 - **Python binding** — an `idiomatic` Python package (PyO3, built with maturin)
   exposes the same engine in-process: `lint(source, language)`,
   `autofix(source, language)`, and `render_skill(language)`.
+- **Node binding** — a napi addon (`lint`, `autofix`, `renderSkill`) exposing the
+  same engine to JavaScript/TypeScript tooling.
+- **Distribution** — prebuilt CLI binaries (cargo-dist → GitHub Releases with
+  shell/PowerShell installers), per-platform npm packages for the Node addon, a
+  `.pre-commit-hooks.yaml`, and an example CI workflow.
+
+## Install
+
+```sh
+# Prebuilt CLI binary (once a release is published):
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/joeblackwaslike/idiomatic/releases/latest/download/idiomatic-cli-installer.sh | sh
+
+# From source:
+cargo install --path crates/idiomatic-cli
+```
+
+The Python binding builds with `cd crates/idiomatic-py && maturin develop`; the
+Node addon with `cd crates/idiomatic-node && npm install && npm run build`.
 
 ## Usage
 
@@ -83,6 +104,32 @@ idiomatic.lint("if x == None:\n    pass\n", "python")      # [Hit(id='compare-no
 idiomatic.autofix("if x == None:\n    pass\n", "python")   # ('if x is None:\n    pass\n', 1)
 idiomatic.render_skill("typescript")                        # SKILL.md text for TypeScript
 ```
+
+### From Node
+
+The same engine is available to JavaScript/TypeScript via the napi addon:
+
+```js
+import { lint, autofix, renderSkill } from 'idiomatic-node';
+
+autofix("if x == None:\n    pass\n", "python");  // { fixed: 'if x is None:\n    pass\n', count: 1 }
+renderSkill("typescript");                        // SKILL.md text for TypeScript
+```
+
+### As a pre-commit hook
+
+```yaml
+# .pre-commit-config.yaml — requires the `idiomatic` binary on PATH (see Install)
+repos:
+  - repo: https://github.com/joeblackwaslike/idiomatic
+    rev: v0.1.0
+    hooks:
+      - id: idiomatic        # report violations (blocks on error severity)
+      # - id: idiomatic-fix  # autofix in place
+```
+
+For CI, copy [`.github/workflows/idiomatic.yml`](.github/workflows/idiomatic.yml)
+— it installs the prebuilt binary and runs `idiomatic check` on changed files.
 
 ## The pack format
 

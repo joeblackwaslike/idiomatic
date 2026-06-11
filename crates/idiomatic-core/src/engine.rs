@@ -13,7 +13,21 @@ pub fn support_lang(name: &str) -> Option<SupportLang> {
     match name.to_ascii_lowercase().as_str() {
         "python" | "py" => Some(SupportLang::Python),
         "typescript" | "ts" => Some(SupportLang::TypeScript),
+        "tsx" => Some(SupportLang::TypeScript),
         _ => None,
+    }
+}
+
+/// Does an idiom declared for `idiom_lang` apply to a file whose language is `file_lang`?
+///
+/// `typescript` idioms (including those tagged `"tsx"`) also apply to `.tsx` files, which
+/// are parsed with the TypeScript grammar so that existing TS-compiled rules match correctly.
+/// (TS-compiled rules do not match Tsx-grammar trees — the grammars have different node shapes
+/// — so `.tsx` files are linted as TypeScript rather than Tsx.)
+pub fn lang_applies(idiom_lang: &str, file_lang: SupportLang) -> bool {
+    match support_lang(idiom_lang) {
+        Some(lang) => lang == file_lang,
+        None => false,
     }
 }
 
@@ -237,4 +251,5 @@ mod tests {
             "output must be a clean non-corrupted rewrite, got {out:?}"
         );
     }
+
 }

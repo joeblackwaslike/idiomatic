@@ -53,6 +53,7 @@ pub fn ext_lang(path: &Path) -> Option<SupportLang> {
     match path.extension().and_then(|e| e.to_str())? {
         "py" => support_lang("python"),
         "ts" => support_lang("typescript"),
+        "tsx" => support_lang("tsx"),
         _ => None,
     }
 }

@@ -5,7 +5,7 @@
 //! `warn-and-instruct` diagnostics back to Claude on stderr (exit 2).
 use idiomatic_core::cascade::{ext_lang, load_cascade};
 use anyhow::Result;
-use idiomatic_core::engine::{autofix_source, lint_source, support_lang, CompiledIdiom};
+use idiomatic_core::engine::{autofix_source, lang_applies, lint_source, CompiledIdiom};
 use idiomatic_core::pack::FixPolicy;
 use idiomatic_core::render::render_diagnostic;
 use idiomatic_core::telemetry::{append_trip, TripEntry};
@@ -53,7 +53,7 @@ pub fn run() -> Result<ExitCode> {
     // skill-only idioms have no detector and are never evaluated in the gate (§7.4).
     let compiled: Vec<CompiledIdiom> = set
         .iter()
-        .filter(|i| support_lang(&i.language) == Some(lang) && i.fix_policy != FixPolicy::SkillOnly)
+        .filter(|i| lang_applies(&i.language, lang) && i.fix_policy != FixPolicy::SkillOnly)
         .filter_map(|i| CompiledIdiom::compile(i).ok())
         .collect();
 

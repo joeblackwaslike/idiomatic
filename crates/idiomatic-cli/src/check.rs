@@ -1,7 +1,7 @@
 //! `idiomatic check [--fix] <paths...>`
 use idiomatic_core::cascade::{ext_lang, load_cascade};
 use anyhow::Result;
-use idiomatic_core::engine::{autofix_source, lint_source, support_lang, CompiledIdiom, Hit};
+use idiomatic_core::engine::{autofix_source, lang_applies, lint_source, CompiledIdiom, Hit};
 use idiomatic_core::pack::{FixPolicy, Severity};
 use idiomatic_core::resolve::IdiomSet;
 use std::fs;
@@ -24,7 +24,7 @@ pub fn run(paths: &[PathBuf], fix: bool) -> Result<CheckOutcome> {
         // Compile only idioms whose language matches this file.
         let compiled: Vec<CompiledIdiom> = set
             .iter()
-            .filter(|i| support_lang(&i.language) == Some(lang))
+            .filter(|i| lang_applies(&i.language, lang))
             .filter_map(|i| CompiledIdiom::compile(i).ok())
             .collect();
 

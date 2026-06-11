@@ -3,7 +3,7 @@
 
 use idiomatic_core::cascade::load_cascade;
 use idiomatic_core::engine::{
-    autofix_source, lint_source, support_lang, CompiledIdiom, SupportLang,
+    autofix_source, lang_applies, lint_source, support_lang, CompiledIdiom, SupportLang,
 };
 use idiomatic_core::render::render_skill as core_render_skill;
 use napi::bindgen_prelude::*;
@@ -40,7 +40,7 @@ fn prepare(language: &str) -> Result<(SupportLang, Vec<CompiledIdiom>)> {
     })?;
     let compiled: Vec<CompiledIdiom> = set
         .iter()
-        .filter(|i| support_lang(&i.language) == Some(lang))
+        .filter(|i| lang_applies(&i.language, lang))
         .filter_map(|i| CompiledIdiom::compile(i).ok())
         .collect();
     Ok((lang, compiled))

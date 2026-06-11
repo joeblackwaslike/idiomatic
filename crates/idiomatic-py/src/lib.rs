@@ -1,6 +1,6 @@
 //! Python bindings for `idiomatic` — lint, autofix, and skill generation.
 use idiomatic_core::cascade::load_cascade;
-use idiomatic_core::engine::{autofix_source, lint_source, support_lang, CompiledIdiom, SupportLang};
+use idiomatic_core::engine::{autofix_source, lang_applies, lint_source, support_lang, CompiledIdiom, SupportLang};
 use idiomatic_core::render::render_skill as core_render_skill;
 use idiomatic_core::resolve::IdiomSet;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -33,7 +33,7 @@ fn prepare(language: &str) -> PyResult<(IdiomSet, SupportLang, Vec<CompiledIdiom
         load_cascade().map_err(|e| PyRuntimeError::new_err(format!("cascade error: {e}")))?;
     let compiled: Vec<CompiledIdiom> = set
         .iter()
-        .filter(|i| support_lang(&i.language) == Some(lang))
+        .filter(|i| lang_applies(&i.language, lang))
         .filter_map(|i| CompiledIdiom::compile(i).ok())
         .collect();
     Ok((set, lang, compiled))

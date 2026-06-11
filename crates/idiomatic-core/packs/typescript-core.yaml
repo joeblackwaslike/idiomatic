@@ -56,7 +56,10 @@ why: "A single-expression arrow body is cleaner and identical in behavior."
 severity: info
 fix_policy: autofix
 rule:
-  pattern: "($PARAMS) => { return $EXPR; }"
+  all:
+    - pattern: "($PARAMS) => { return $EXPR; }"
+    - not:
+        pattern: "($PARAMS) => { return {$$$_}; }"
 fix: "($PARAMS) => $EXPR"
 examples:
   bad: "const f = (x) => { return x + 1; };"

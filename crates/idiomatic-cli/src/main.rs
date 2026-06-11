@@ -1,4 +1,3 @@
-mod cascade;
 mod check;
 mod hook;
 mod install_hook;

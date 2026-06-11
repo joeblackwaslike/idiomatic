@@ -8,9 +8,9 @@ mechanically-decidable violations in place instead of bouncing the agent through
 rewrite loops. The same idiom packs back a `check` CLI for pre-commit and CI, so
 humans and agents are held to one ruleset.
 
-> **Status:** Two reference languages ship — **Python and TypeScript** — proving
-> the language-abstraction thesis (build-order steps 1–5 + 7). The Python (PyO3)
-> binding and a Node binding + CI recipe are follow-on work. See
+> **Status:** Two reference languages (**Python and TypeScript**) and a **Python
+> (PyO3) binding** ship (build-order steps 1–7). A Node binding + CI wheel
+> publishing remain follow-on. See
 > [the design spec](docs/superpowers/specs/2026-06-09-idiomatic-framework-design.md).
 
 ## What works today
@@ -36,6 +36,9 @@ humans and agents are held to one ruleset.
   (the "teach up front" half), so the agent writes idiomatic code the first time.
 - **Telemetry** — each hook trip is appended to `~/.idiomatic/telemetry.jsonl`
   (`{idiom_id, file, fix_policy, ts}`) to power trip-count ranking later.
+- **Python binding** — an `idiomatic` Python package (PyO3, built with maturin)
+  exposes the same engine in-process: `lint(source, language)`,
+  `autofix(source, language)`, and `render_skill(language)`.
 
 ## Usage
 
@@ -67,6 +70,19 @@ app.py: [print-debugging] Use logging instead of `print` for diagnostics — pri
 
 `== None` is rewritten to `is None` silently; `print(...)` has no single safe
 rewrite, so it's reported for the author to address.
+
+### From Python
+
+The same engine is available in-process via the `idiomatic` Python package
+(built with [maturin](https://www.maturin.rs); `cd crates/idiomatic-py && maturin develop`):
+
+```python
+import idiomatic
+
+idiomatic.lint("if x == None:\n    pass\n", "python")      # [Hit(id='compare-none', start=3, end=12)]
+idiomatic.autofix("if x == None:\n    pass\n", "python")   # ('if x is None:\n    pass\n', 1)
+idiomatic.render_skill("typescript")                        # SKILL.md text for TypeScript
+```
 
 ## The pack format
 

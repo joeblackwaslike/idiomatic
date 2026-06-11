@@ -1,5 +1,5 @@
 //! `idiomatic check [--fix] <paths...>`
-use crate::cascade::{ext_lang, load_cascade};
+use idiomatic_core::cascade::{ext_lang, load_cascade};
 use anyhow::Result;
 use idiomatic_core::engine::{autofix_source, lint_source, support_lang, CompiledIdiom, Hit};
 use idiomatic_core::pack::{FixPolicy, Severity};

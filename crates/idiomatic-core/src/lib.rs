@@ -1,5 +1,6 @@
 //! Core of the `idiomatic` idiom-enforcement framework.
 
+pub mod cascade;
 pub mod error;
 pub mod pack;
 pub mod resolve;

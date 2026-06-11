@@ -1,5 +1,5 @@
 //! `idiomatic skill-gen <language> [--out <dir>]` — render the teaching skill.
-use crate::cascade::load_cascade;
+use idiomatic_core::cascade::load_cascade;
 use anyhow::Result;
 use idiomatic_core::render::render_skill;
 use std::fs;

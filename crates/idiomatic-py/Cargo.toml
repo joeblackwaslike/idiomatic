@@ -1,0 +1,18 @@
+[package]
+name = "idiomatic-py"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "idiomatic"          # = the Python import name and the #[pymodule] fn name
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+idiomatic-core = { path = "../idiomatic-core" }
+pyo3.workspace = true
+
+[features]
+# Off by default so `cargo test/clippy --workspace` links local libpython and
+# stays green. maturin turns this on to build a portable abi3 wheel.
+extension-module = ["pyo3/extension-module"]

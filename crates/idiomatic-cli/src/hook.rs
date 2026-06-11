@@ -3,7 +3,7 @@
 //! Reads the hook payload from stdin, lints the touched file, autofixes in place,
 //! and either surfaces an "applied N fixes" systemMessage (exit 0) or feeds
 //! `warn-and-instruct` diagnostics back to Claude on stderr (exit 2).
-use crate::cascade::{ext_lang, load_cascade};
+use idiomatic_core::cascade::{ext_lang, load_cascade};
 use anyhow::Result;
 use idiomatic_core::engine::{autofix_source, lint_source, support_lang, CompiledIdiom};
 use idiomatic_core::pack::FixPolicy;

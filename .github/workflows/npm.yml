@@ -1,0 +1,88 @@
+# Build the napi addon for each platform and publish per-platform npm packages.
+#
+# NOTE: authored + host-build-validated only. The cross-platform matrix and the
+# `npm publish` step run on a real GitHub remote with an NPM_TOKEN secret, on a
+# pushed `v*` tag. When the remote is set up, regenerate/verify against the
+# current napi-rs package-template CI (https://github.com/napi-rs/package-template)
+# — napi-rs's matrix evolves and this is the highest-churn file in the repo.
+name: npm
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["crates/idiomatic-node/**", ".github/workflows/npm.yml"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: crates/idiomatic-node
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: macos-14
+            target: aarch64-apple-darwin
+            build: napi build --platform --release --target aarch64-apple-darwin
+          - host: macos-13
+            target: x86_64-apple-darwin
+            build: napi build --platform --release --target x86_64-apple-darwin
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build: napi build --platform --release --target x86_64-unknown-linux-gnu --use-napi-cross
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            build: napi build --platform --release --target aarch64-unknown-linux-gnu --use-napi-cross
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: napi build --platform --release --target x86_64-pc-windows-msvc
+    name: build - ${{ matrix.target }}
+    runs-on: ${{ matrix.host }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+      - name: Install dependencies
+        run: npm install
+      - name: Build
+        run: ${{ matrix.build }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.target }}
+          path: crates/idiomatic-node/*.node
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - name: Install dependencies
+        run: npm install
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: crates/idiomatic-node/artifacts
+      - name: Move binaries into per-platform npm packages
+        run: napi prepublish -t npm --skip-gh-release
+      - name: Publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,19 @@
+{
+  "name": "idiomatic-node-darwin-x64",
+  "version": "0.1.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "idiomatic.darwin-x64.node",
+  "files": [
+    "idiomatic.darwin-x64.node"
+  ],
+  "description": "Idiom enforcement for Python and TypeScript — lint, autofix, and skill generation.",
+  "license": "MIT",
+  "engines": {
+    "node": ">= 16"
+  },
+  "os": [
+    "darwin"
+  ]
+}

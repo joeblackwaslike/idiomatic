@@ -2,8 +2,9 @@ node_modules/
 *.node
 index.js
 index.d.ts
-npm/
 .napi-rs/
+# napi per-platform packages: track the package.json stubs, ignore built binaries
+npm/**/*.node
 
 # npm lockfile (library — not committed)
 package-lock.json

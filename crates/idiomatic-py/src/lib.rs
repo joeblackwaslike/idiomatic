@@ -59,6 +59,8 @@ fn autofix(source: &str, language: &str) -> PyResult<(String, usize)> {
 /// Render the teaching skill (SKILL.md text) for `language` from the cascade.
 #[pyfunction]
 fn render_skill(language: &str) -> PyResult<String> {
+    support_lang(language)
+        .ok_or_else(|| PyValueError::new_err(format!("unknown language: {language}")))?;
     let set =
         load_cascade().map_err(|e| PyRuntimeError::new_err(format!("cascade error: {e}")))?;
     Ok(core_render_skill(&set, language))

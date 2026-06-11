@@ -39,3 +39,8 @@ def test_unknown_language_raises():
         idiomatic.lint("x", "cobol")
     with pytest.raises(ValueError):
         idiomatic.autofix("x", "cobol")
+
+
+def test_render_skill_unknown_language_raises():
+    with pytest.raises(ValueError):
+        idiomatic.render_skill("cobol")

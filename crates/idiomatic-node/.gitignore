@@ -4,3 +4,6 @@ index.js
 index.d.ts
 npm/
 .napi-rs/
+
+# npm lockfile (library — not committed)
+package-lock.json

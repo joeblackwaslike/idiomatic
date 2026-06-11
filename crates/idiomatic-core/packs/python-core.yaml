@@ -9,7 +9,12 @@ why: "None is a singleton; identity comparison is correct, faster, and idiomatic
 severity: warn
 fix_policy: autofix
 rule:
-  pattern: "$X == None"
+  all:
+    - pattern: "$X == None"
+    # Guard: do not match inside a chained comparison like `a == None == b`,
+    # which ast-grep would corrupt by dropping the trailing operand.
+    - not:
+        pattern: "$A == None == $B"
 fix: "$X is None"
 skill_prose: |
   Compare with `is None` / `is not None`, never `== None`. `None` is a singleton,

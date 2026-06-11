@@ -10,4 +10,5 @@ expression: ids
 - triple-equals
 - optional-chaining
 - no-console
+- arrow-implicit-return
 - prefer-named-exports

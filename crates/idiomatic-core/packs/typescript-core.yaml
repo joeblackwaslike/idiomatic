@@ -9,7 +9,9 @@ why: "`==` does type coercion with surprising rules; `===` compares without coer
 severity: warn
 fix_policy: warn-and-instruct
 rule:
-  pattern: "$A == $B"
+  any:
+    - pattern: "$A == $B"
+    - pattern: "$A != $B"
 skill_prose: |
   Always compare with `===` / `!==`, never `==` / `!=`. Loose equality coerces
   operands with rules almost nobody remembers; strict equality says exactly what
@@ -46,6 +48,22 @@ skill_prose: |
 examples:
   bad: "console.log(\"value\", value);"
   good: "logger.debug(\"value\", value);"
+---
+id: arrow-implicit-return
+language: typescript
+title: "Use an implicit arrow return instead of a block with a single return"
+why: "A single-expression arrow body is cleaner and identical in behavior."
+severity: info
+fix_policy: autofix
+rule:
+  all:
+    - pattern: "($PARAMS) => { return $EXPR; }"
+    - not:
+        pattern: "($PARAMS) => { return {$$$_}; }"
+fix: "($PARAMS) => $EXPR"
+examples:
+  bad: "const f = (x) => { return x + 1; };"
+  good: "const f = (x) => x + 1;"
 ---
 id: prefer-named-exports
 language: typescript

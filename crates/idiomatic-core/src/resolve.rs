@@ -112,9 +112,29 @@ pub fn resolve(packs: &[LoadedPack]) -> Result<IdiomSet, ResolveError> {
     // Preserve first-seen id order for deterministic output / golden tests.
     let mut order: Vec<String> = Vec::new();
     let mut accs: BTreeMap<String, Acc> = BTreeMap::new();
+    // Track the first explicit language declared per id to detect cross-language collisions.
+    let mut id_language: BTreeMap<String, String> = BTreeMap::new();
 
     for pack in packs {
         for patch in &pack.idioms {
+            // Detect cross-language id collisions: if this patch explicitly declares
+            // a language, compare it against the first language seen for this id.
+            if let Some(lang) = &patch.language {
+                match id_language.get(&patch.id) {
+                    Some(first) if first != lang => {
+                        return Err(ResolveError::IdLanguageConflict {
+                            id: patch.id.clone(),
+                            first: first.clone(),
+                            second: lang.clone(),
+                        });
+                    }
+                    None => {
+                        id_language.insert(patch.id.clone(), lang.clone());
+                    }
+                    Some(_) => {} // same language — fine
+                }
+            }
+
             let acc = accs.entry(patch.id.clone()).or_insert_with(|| {
                 order.push(patch.id.clone());
                 Acc::default()
@@ -192,5 +212,65 @@ fix: "$X is None"
         .unwrap();
         let set = resolve(&[base_pack(), off]).unwrap();
         assert!(set.get("compare-none").is_none());
+    }
+
+    /// Two packs that declare the same id for different languages should fail.
+    #[test]
+    fn cross_language_id_collision_is_rejected() {
+        let pack_py = LoadedPack::from_yaml_str(
+            r#"
+name: py-pack
+language: python
+version: 0.1.0
+---
+id: dup
+language: python
+title: "Dup Python"
+why: "test"
+severity: error
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X == None"
+"#,
+            Layer::Base,
+        )
+        .unwrap();
+
+        let pack_ts = LoadedPack::from_yaml_str(
+            r#"
+name: ts-pack
+language: typescript
+version: 0.1.0
+---
+id: dup
+language: typescript
+title: "Dup TypeScript"
+why: "test"
+severity: error
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X == null"
+"#,
+            Layer::Base,
+        )
+        .unwrap();
+
+        let err = resolve(&[pack_py, pack_ts]).unwrap_err();
+        assert!(
+            matches!(err, ResolveError::IdLanguageConflict { ref id, .. } if id == "dup"),
+            "expected IdLanguageConflict, got: {:?}",
+            err
+        );
+    }
+
+    /// A project override that omits `language` (single-field override) must NOT
+    /// trigger IdLanguageConflict — it's a valid layered patch.
+    #[test]
+    fn language_free_override_does_not_false_positive() {
+        let set = resolve(&[base_pack(), project_override()]).unwrap();
+        let idiom = set.get("compare-none").unwrap();
+        // Severity was overridden; language came from base.
+        assert_eq!(idiom.severity, Severity::Warn);
+        assert_eq!(idiom.language, "python");
     }
 }

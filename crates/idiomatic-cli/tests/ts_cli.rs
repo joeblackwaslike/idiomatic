@@ -39,6 +39,19 @@ fn check_reports_no_console_without_fixing() {
 }
 
 #[test]
+fn check_reports_tsx_file_with_typescript_idioms() {
+    let file = tmp("c.tsx");
+    fs::write(&file, "if (a == b) { return; }\n").unwrap();
+
+    Command::cargo_bin("idiomatic")
+        .unwrap()
+        .args(["check", file.to_str().unwrap()])
+        .assert()
+        .success() // warn severity → exit 0
+        .stdout(predicates::str::contains("triple-equals"));
+}
+
+#[test]
 fn skillgen_renders_typescript() {
     Command::cargo_bin("idiomatic")
         .unwrap()

@@ -13,6 +13,16 @@ fn skillgen_stdout_renders_python_skill() {
 }
 
 #[test]
+fn skillgen_unknown_language_errors() {
+    Command::cargo_bin("idiomatic")
+        .unwrap()
+        .args(["skill-gen", "cobol"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("unknown language"));
+}
+
+#[test]
 fn skillgen_out_writes_skill_md() {
     let dir = std::env::temp_dir().join(format!("idiomatic-skillgen-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);

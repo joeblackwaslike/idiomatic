@@ -44,3 +44,19 @@ def test_unknown_language_raises():
 def test_render_skill_unknown_language_raises():
     with pytest.raises(ValueError):
         idiomatic.render_skill("cobol")
+
+
+def test_linter_handle_reuses_cascade():
+    lint = idiomatic.Linter()
+    hits = lint.lint("if x == None:\n    pass\n", "python")
+    assert any(h.id == "compare-none" for h in hits)
+    fixed, n = lint.autofix("if x == None:\n    pass\n", "python")
+    assert fixed == "if x is None:\n    pass\n"
+    assert n == 1
+    assert "name: idiomatic-python" in lint.render_skill("python")
+
+
+def test_linter_unknown_language_raises():
+    lint = idiomatic.Linter()
+    with pytest.raises(ValueError):
+        lint.lint("x", "cobol")

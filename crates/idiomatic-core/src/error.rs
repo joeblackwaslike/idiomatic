@@ -23,6 +23,10 @@ pub enum ResolveError {
     SkillOnlyWithRule { id: String },
     #[error("idiom '{id}': a `rule` is present but fix_policy=skill-only")]
     RuleWithSkillOnly { id: String },
+    #[error("idiom '{id}': rule failed to compile: {message}")]
+    RuleCompile { id: String, message: String },
+    #[error("idiom id '{id}' is used for two languages: '{first}' and '{second}' — ids must be unique across languages")]
+    IdLanguageConflict { id: String, first: String, second: String },
 }
 
 #[derive(Debug, Error)]

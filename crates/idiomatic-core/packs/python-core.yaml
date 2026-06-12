@@ -62,3 +62,209 @@ skill_prose: |
   When a function nests more than about three levels deep, invert conditions and
   return early (guard clauses) so the happy path stays at the left margin. This is
   a judgment call — there is no mechanical rewrite, so it is taught, not enforced.
+---
+id: mutable-default-arg
+language: python
+title: "Don't use a mutable default argument (`=[]` / `={}`)"
+why: "A default list/dict is created once and shared across all calls, so mutations leak between invocations — a classic footgun. There is no single safe rewrite (intent varies)."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  kind: default_parameter
+  has:
+    field: value
+    any:
+      - kind: list
+      - kind: dictionary
+skill_prose: |
+  Never default a parameter to a mutable literal (`def f(x=[])`, `def f(x={})`).
+  Python evaluates the default once at definition time and reuses that same object,
+  so state leaks across calls. Default to `None` and build the container inside the
+  body: `def f(x=None):\n    if x is None:\n        x = []`.
+examples:
+  bad: "def f(x=[]):\n    return x"
+  good: "def f(x=None):\n    return x"
+---
+id: bare-except
+language: python
+title: "Catch a specific exception instead of a bare `except:`"
+why: "A bare `except:` also swallows `KeyboardInterrupt` and `SystemExit`, hiding bugs and breaking Ctrl-C. The right exception type depends on intent, so there is no safe autofix."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern:
+    context: "try:\n    pass\nexcept:\n    pass"
+    selector: except_clause
+skill_prose: |
+  Never write a bare `except:`. It catches `BaseException` — including
+  `KeyboardInterrupt` and `SystemExit` — so it masks real failures and makes the
+  program impossible to interrupt. Catch the narrowest exception you actually handle
+  (`except ValueError:`), or `except Exception:` as a deliberate last resort.
+examples:
+  bad: "try:\n    risky()\nexcept:\n    pass"
+  good: "try:\n    risky()\nexcept ValueError:\n    pass"
+---
+id: type-equality
+language: python
+title: "Use `isinstance(x, T)` instead of `type(x) == T`"
+why: "`type(x) == T` rejects subclasses and reads awkwardly; `isinstance` is the idiom and respects inheritance. The rewrite isn't always behavior-preserving (subclasses), so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "type($X) == $T"
+    - pattern: "$T == type($X)"
+skill_prose: |
+  Prefer `isinstance(x, T)` over `type(x) == T`. `isinstance` is the idiomatic
+  type check and accepts subclasses, which is almost always what you want. Reach for
+  the exact-type `type(x) is T` comparison only when you deliberately need to exclude
+  subclasses.
+examples:
+  bad: "if type(x) == int:\n    pass"
+  good: "if isinstance(x, int):\n    pass"
+---
+id: assert-tuple
+language: python
+title: "Don't `assert` a non-empty tuple — it's always true"
+why: "`assert (cond, msg)` asserts a 2-tuple, which is always truthy, so the check never fails. The comma is the bug; the fix is to drop the parens, which can't be done blindly."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "assert ($A, $B)"
+skill_prose: |
+  `assert (cond, "message")` does not do what it looks like: the parentheses make a
+  tuple, and a non-empty tuple is always truthy, so the assertion can never fail.
+  Drop the parentheses: `assert cond, "message"`.
+examples:
+  bad: "assert (x > 0, \"must be positive\")"
+  good: "assert x > 0, \"must be positive\""
+---
+id: is-literal
+language: python
+title: "Use `==` instead of `is` to compare with a literal"
+why: "`is` tests identity, not value; `x is 0` / `x is \"s\"` only works by CPython interning accident and is not guaranteed. Use `==` for value comparison."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  all:
+    - pattern: "$X is $Y"
+    - has:
+        stopBy: neighbor
+        any:
+          - kind: integer
+          - kind: float
+          - kind: string
+skill_prose: |
+  Never compare against a literal with `is` (`x is 0`, `x is "done"`). `is` checks
+  object identity; it appears to work only because CPython caches small ints and some
+  strings, which is an implementation detail, not a guarantee. Use `==` for value
+  equality and reserve `is` for singletons (`is None`, `is True`).
+examples:
+  bad: "if x is 0:\n    pass"
+  good: "if x == 0:\n    pass"
+---
+id: not-is
+language: python
+title: "Use `is not` instead of `not ... is`"
+why: "`a is not b` is a single operator that reads as intended; `not a is b` relies on precedence and reads as a negated identity test. No safe autofix: chained comparisons (`not a is b is c`) corrupt under a naive rewrite."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "not $A is $B"
+skill_prose: |
+  Write `a is not b`, not `not a is b`. Python has a dedicated `is not` operator that
+  states the intent directly; the negated form leans on operator precedence and reads
+  worse. (This is taught rather than autofixed because chained comparisons like
+  `not a is b is c` can't be rewritten mechanically without changing meaning.)
+examples:
+  bad: "if not a is b:\n    pass"
+  good: "if a is not b:\n    pass"
+---
+id: not-eq
+language: python
+title: "Use `!=` instead of `not ... ==`"
+why: "`a != b` is the inequality operator; `not a == b` negates an equality test and reads awkwardly. No safe autofix: chained comparisons (`not a == b == c`) corrupt under a naive rewrite."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "not $A == $B"
+skill_prose: |
+  Write `a != b`, not `not a == b`. The `!=` operator says exactly what you mean,
+  while the negated equality is noisier and easy to misread. (Taught rather than
+  autofixed because chained comparisons like `not a == b == c` can't be rewritten
+  mechanically without changing meaning.)
+examples:
+  bad: "if not a == b:\n    pass"
+  good: "if a != b:\n    pass"
+---
+id: len-zero
+language: python
+title: "Use truthiness instead of `len(x) == 0`"
+why: "Empty containers are falsy, so `not x` is the idiom for emptiness; `len(x) == 0` is more to read and computes a length you don't need. The rewrite isn't always behavior-identical (numpy, len-less iterables), so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "len($X) == 0"
+    - pattern: "0 == len($X)"
+skill_prose: |
+  Test a container for emptiness with its truthiness — `if not items:` /
+  `if items:` — rather than `len(items) == 0`. Empty sequences and mappings are
+  falsy, so this is shorter and idiomatic. (Stick with explicit `len(...) == 0` when
+  the object overrides truthiness in surprising ways, e.g. numpy arrays.)
+examples:
+  bad: "if len(items) == 0:\n    pass"
+  good: "if not items:\n    pass"
+---
+id: dict-keys-iter
+language: python
+title: "Iterate a dict directly instead of `.keys()`"
+why: "Iterating a dict already yields its keys, so `for k in d.keys()` builds a needless view. `for k in d` is the idiom. Taught rather than autofixed because `.keys()` is sometimes used deliberately (e.g. snapshotting before mutation)."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "for $K in $D.keys():\n    $$$BODY"
+skill_prose: |
+  Iterate a mapping directly — `for k in d:` — instead of `for k in d.keys()`.
+  Iterating a dict already yields its keys, so `.keys()` just adds noise. (Keep
+  `list(d.keys())` when you specifically need a snapshot you can mutate the dict
+  against during the loop.)
+examples:
+  bad: "for k in d.keys():\n    print(k)"
+  good: "for k in d:\n    print(k)"
+---
+id: guard-clauses
+language: python
+title: "Prefer guard clauses over deeply nested conditionals"
+why: "Early returns for error/edge cases keep the happy path unindented and readable. Whether a branch should become a guard is a judgment call, so it's taught, not enforced."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Handle edge cases and errors first with early `return`/`raise`/`continue` so the
+  main logic stays at the left margin instead of nesting under a pyramid of `if`s.
+  Invert the condition — `if not valid: return` — rather than wrapping the whole
+  body in `if valid:`. This is a structural judgment, so it's taught, not enforced.
+---
+id: comprehension-over-loop
+language: python
+title: "Prefer a comprehension over a build-up loop"
+why: "A list/dict/set comprehension expresses 'transform/filter this iterable' in one expression that's clearer and faster than appending in a loop. Not every loop should become one, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a loop exists only to build a list/dict/set by repeatedly appending or
+  assigning, replace it with a comprehension: `[f(x) for x in xs if pred(x)]`. It's
+  one expression, communicates intent, and is faster. Keep the explicit loop when the
+  body has side effects, multiple statements, or non-trivial control flow.
+---
+id: descriptive-names
+language: python
+title: "Use descriptive names, not single letters"
+why: "One-letter names outside tiny scopes force the reader to track what each stands for. Idiomatic short names (`i`, `x`, `k`, `v` in a comprehension) are fine; everything else should describe its role. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Name variables for what they hold (`total`, `user`, `retry_count`), not single
+  letters. The conventional throwaways — `i`/`j` for indices, `x` in a short
+  lambda/comprehension, `k`/`v` when unpacking dict items — are fine in their tiny
+  scope; reach for a real name the moment the value outlives a line or two.

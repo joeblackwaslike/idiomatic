@@ -77,3 +77,174 @@ skill_prose: |
   rename-symbol and auto-import reliable, and avoid the default-export quirks with
   re-exports and tree-shaking. This is a design judgment, so it's taught, not
   enforced.
+---
+id: no-var
+language: typescript
+title: "Use `let`/`const` instead of `var`"
+why: "`var` is function-scoped and hoisted, which causes leaking and TDZ-free surprises; `let`/`const` are block-scoped. The right choice (`let` vs `const`) depends on reassignment, so it's taught, not autofixed."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  kind: variable_declaration
+skill_prose: |
+  Never declare with `var`. It's function-scoped and hoisted, so it leaks out of
+  blocks and enables whole classes of bugs. Use `const` by default and `let` only
+  when you actually reassign — both are block-scoped and say more about intent.
+examples:
+  bad: "var x = 1;"
+  good: "const x = 1;"
+---
+id: no-eval
+language: typescript
+title: "Never use `eval`"
+why: "`eval` executes arbitrary strings as code — an injection and performance hazard that also defeats minifiers and static analysis. There is no mechanical replacement; the data flow must be redesigned."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "eval($$$ARGS)"
+skill_prose: |
+  Do not use `eval`. Running a string as code is a remote-code-execution risk the
+  moment any part of that string is influenced by input, and it blocks minification
+  and optimization. Parse data with `JSON.parse`, dispatch on a lookup table/`Map`,
+  or restructure so no dynamic code is needed.
+examples:
+  bad: "const data = eval(input);"
+  good: "const data = JSON.parse(input);"
+---
+id: no-debugger
+language: typescript
+title: "Remove stray `debugger` statements"
+why: "A committed `debugger` halts execution whenever devtools are open — it's debugging scaffolding that should never reach shared branches or production."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  kind: debugger_statement
+skill_prose: |
+  Strip `debugger` statements before committing. They pause execution whenever a
+  developer has devtools open, which is disruptive in shared and production builds.
+  Use breakpoints in your editor/devtools instead of hard-coding them in source.
+examples:
+  bad: "debugger;"
+  good: "noop();"
+---
+id: no-array-constructor
+language: typescript
+title: "Use an array literal instead of `new Array()`"
+why: "`new Array()` is verbose and footgun-adjacent (`new Array(3)` makes a length-3 hole array, not `[3]`). The empty form is unambiguously `[]`."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "new Array()"
+fix: "[]"
+skill_prose: |
+  Prefer the array literal `[]` over `new Array()`. The constructor is longer and its
+  single-number form is a trap — `new Array(3)` is a length-3 empty array, not `[3]`.
+  (Only the zero-argument form is autofixed; argument forms are left for you to decide.)
+examples:
+  bad: "const a = new Array();"
+  good: "const a = [];"
+---
+id: prefer-includes
+language: typescript
+title: "Use `.includes()` instead of `.indexOf(x) !== -1`"
+why: "`.includes(x)` states the membership test directly; `.indexOf(x) !== -1` is an idiom from before `includes` existed and is easy to get wrong (`> -1` vs `>= 0`)."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "$A.indexOf($X) !== -1"
+fix: "$A.includes($X)"
+skill_prose: |
+  Test membership with `arr.includes(x)` rather than `arr.indexOf(x) !== -1`. It
+  reads as the boolean it is and avoids the off-by-one traps of comparing an index.
+  (Only the `!== -1` form is autofixed; `=== -1` and `>= 0` variants are left alone.)
+examples:
+  bad: "const has = arr.indexOf(x) !== -1;"
+  good: "const has = arr.includes(x);"
+---
+id: avoid-any
+language: typescript
+title: "Avoid `any`; prefer `unknown` or a specific type"
+why: "`any` opts out of type checking entirely and silently propagates, defeating the purpose of TypeScript. `unknown` keeps safety while staying generic; the right concrete type depends on context, so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  kind: predefined_type
+  regex: "^any$"
+skill_prose: |
+  Avoid `any`. It disables type checking on the value and everything derived from it,
+  which quietly erodes safety across the codebase. Use `unknown` when the type is
+  genuinely open (it forces a narrowing check before use), or write the specific
+  type/`interface`/generic that describes the value.
+examples:
+  bad: "let value: any;"
+  good: "let value: unknown;"
+---
+id: no-non-null-assertion
+language: typescript
+title: "Avoid the non-null assertion `!`"
+why: "`x!` asserts a value isn't null/undefined without proof; if you're wrong it throws at runtime, defeating the type checker. The safe fix (guard, default, narrowing) depends on context."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  kind: non_null_expression
+skill_prose: |
+  Avoid the non-null assertion operator (`x!`). It silences the compiler rather than
+  proving the value is present, so a wrong assumption becomes a runtime crash. Narrow
+  with an explicit check (`if (x) ...`), provide a default (`x ?? fallback`), or fix
+  the type so it isn't nullable in the first place.
+examples:
+  bad: "const len = name!.length;"
+  good: "const len = name?.length ?? 0;"
+---
+id: prefer-spread-array
+language: typescript
+title: "Use array spread instead of `[].concat(...)`"
+why: "`[...a, ...b]` is the modern, readable way to merge arrays; `[].concat(a, b)` is the pre-ES2015 idiom and obscures intent. Taught rather than autofixed because `concat` has spread-incompatible behavior with non-array args."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "[].concat($$$ARGS)"
+skill_prose: |
+  Merge arrays with spread — `[...a, ...b]` — instead of `[].concat(a, b)`. Spread is
+  the current idiom and reads as construction rather than a method chain. (Note
+  `concat` flattens one level of array arguments but appends non-array values, so a
+  blind rewrite isn't always equivalent — convert deliberately.)
+examples:
+  bad: "const all = [].concat(a, b);"
+  good: "const all = [...a, ...b];"
+---
+id: prefer-early-return
+language: typescript
+title: "Prefer early returns over deeply nested conditionals"
+why: "Returning early on guard conditions keeps the happy path unindented. Whether a branch should flip into a guard is a judgment call, so it's taught, not enforced."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Handle edge cases and errors up front with early `return`/`throw`/`continue` so the
+  primary logic stays at the left margin instead of nesting inside `if` blocks. Invert
+  the condition — `if (!ok) return;` — rather than wrapping the body in `if (ok)`.
+  This is a structural judgment, so it's taught, not enforced.
+---
+id: boolean-naming
+language: typescript
+title: "Name booleans with an `is`/`has`/`should` prefix"
+why: "A boolean named `active` reads ambiguously at the call site; `isActive` makes the type and meaning obvious. A naming judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give boolean variables, parameters, and properties a predicate prefix — `isActive`,
+  `hasPermission`, `shouldRetry`, `canEdit`. It makes call sites read like assertions
+  (`if (isActive)`) and signals the type at a glance. Reserve bare nouns for values
+  that aren't booleans.
+---
+id: cohesive-modules
+language: typescript
+title: "Keep each module focused on one responsibility"
+why: "A module that mixes unrelated concerns is hard to name, test, and tree-shake. Where the boundaries lie is a design judgment, so it's taught, not enforced."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Keep a module cohesive: one clear responsibility, exports that belong together, a
+  name that describes the whole. When a file accumulates unrelated helpers, types, and
+  side effects, split it along the seams so each module can be understood, tested, and
+  tree-shaken on its own. This is an architectural judgment, so it's taught.

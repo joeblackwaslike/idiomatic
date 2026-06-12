@@ -323,8 +323,9 @@ rule:
 skill_prose: |
   Prefer f-strings over `"...".format(...)`. `f"Hello {name}"` keeps each value
   inline where it's interpolated, which is clearer and faster than threading
-  arguments through `.format`. (The same applies to `%`-formatting.) Keep `.format`
-  when the template is built dynamically or reused with different arguments.
+  arguments through `.format`. The same advice applies to `%`-formatting
+  (`"%s" % x`), though this rule only flags `.format`. Keep `.format` when the
+  template is built dynamically or reused with different arguments.
 examples:
   bad: "msg = \"Hello {}\".format(name)"
   good: "msg = f\"Hello {name}\""

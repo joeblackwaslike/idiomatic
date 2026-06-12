@@ -71,3 +71,6 @@ bd.db
 # They would override fork protection in .git/info/exclude.
 # Config files (metadata.json, config.yaml) are tracked by git by default
 # since no pattern above ignores them.
+
+# Issues export (Dolt DB is the source of truth; export churns and conflicts at merge)
+issues.jsonl

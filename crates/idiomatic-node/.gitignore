@@ -1,7 +1,9 @@
 node_modules/
 *.node
-index.js
-index.d.ts
+# index.js / index.d.ts ARE committed (the napi JS loader stub + types): the
+# publish job checks them out and `npm publish` ships them as the package `main`.
+# They only change when the #[napi] export surface changes — regenerate with
+# `napi build` and commit. (Matches the napi-rs package-template.)
 .napi-rs/
 # napi per-platform packages: track the package.json stubs, ignore built binaries
 npm/**/*.node

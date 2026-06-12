@@ -26,6 +26,12 @@ expression: ids
 - redundant-lambda
 - compare-true-false
 - isinstance-tuple
+- open-without-context
+- unnecessary-comprehension
+- chained-comparison
+- string-startswith-tuple
+- nested-ternary
+- type-annotations
 - triple-equals
 - optional-chaining
 - no-console
@@ -47,3 +53,9 @@ expression: ids
 - no-throw-literal
 - prefer-optional-catch-binding
 - prefer-for-of
+- prefer-string-startswith
+- prefer-exponent
+- prefer-number-isnan
+- prefer-at
+- prefer-nullish-coalescing
+- no-nested-ternary

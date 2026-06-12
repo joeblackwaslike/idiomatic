@@ -8,7 +8,7 @@ fn seed_packs_resolve_across_languages() {
         .map(|(_, yaml)| LoadedPack::from_yaml_str(yaml, Layer::Base).unwrap())
         .collect();
     let set = resolve(&packs).unwrap();
-    assert_eq!(set.len(), 44); // 23 python + 21 typescript
+    assert_eq!(set.len(), 56); // 29 python + 27 typescript
 
     let ids: Vec<&str> = set.iter().map(|i| i.id.as_str()).collect();
     insta::assert_yaml_snapshot!(ids);

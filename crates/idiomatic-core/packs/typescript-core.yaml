@@ -354,3 +354,97 @@ skill_prose: |
   form names the element and drops the index bookkeeping. When you genuinely need the
   index too, reach for `items.forEach((item, i) => ...)` or `for (const [i, item] of
   items.entries())` instead of falling back to the manual counter.
+---
+id: prefer-string-startswith
+language: typescript
+title: "Use `.startsWith()` instead of `.indexOf(x) === 0`"
+why: "`s.startsWith(x)` states the intent; `s.indexOf(x) === 0` is the pre-ES2015 idiom and scans for a position you then compare. The `=== 0` form is exactly equivalent, so the rewrite is safe."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "$S.indexOf($X) === 0"
+fix: "$S.startsWith($X)"
+skill_prose: |
+  Test a prefix with `s.startsWith(x)` instead of `s.indexOf(x) === 0`. It reads as
+  the boolean it is and doesn't compute an index you immediately compare away. Use
+  `s.endsWith(x)` for suffixes. (Only the `=== 0` form is autofixed; other index
+  comparisons are left alone.)
+examples:
+  bad: "const ok = s.indexOf(\"a\") === 0;"
+  good: "const ok = s.startsWith(\"a\");"
+---
+id: prefer-exponent
+language: typescript
+title: "Use the `**` operator instead of `Math.pow`"
+why: "`a ** b` is the built-in exponentiation operator — shorter and clearer than `Math.pow(a, b)`. Taught rather than autofixed: a naive rewrite drops precedence parens (`Math.pow(a+1, b)` → `a+1 ** b`) and `Math.pow(-2, 2)` → `-2 ** 2` is a syntax error."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "Math.pow($A, $B)"
+skill_prose: |
+  Use the exponentiation operator: `a ** b` instead of `Math.pow(a, b)`. It's the
+  native operator and reads cleanly. When the base or exponent is a compound
+  expression, parenthesize — `(a + 1) ** b` — and note a negative literal base needs
+  parens too: `(-2) ** 2`, since `-2 ** 2` is a syntax error.
+examples:
+  bad: "const y = Math.pow(x, 2);"
+  good: "const y = x ** 2;"
+---
+id: prefer-number-isnan
+language: typescript
+title: "Use `Number.isNaN` instead of the global `isNaN`"
+why: "The global `isNaN` coerces its argument first, so `isNaN(\"foo\")` is `true` — a frequent source of bugs. `Number.isNaN` checks for the actual NaN value. No safe autofix: the two are not equivalent for non-number arguments."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "isNaN($X)"
+skill_prose: |
+  Use `Number.isNaN(x)`, not the global `isNaN(x)`. The global coerces first, so
+  `isNaN("foo")` and `isNaN(undefined)` are `true` even though neither is the NaN
+  value — a classic footgun. `Number.isNaN` returns true only for actual `NaN`. If you
+  do want the coercing check, make it explicit with `Number.isNaN(Number(x))`.
+examples:
+  bad: "if (isNaN(n)) {}"
+  good: "if (Number.isNaN(n)) {}"
+---
+id: prefer-at
+language: typescript
+title: "Use `.at(-1)` instead of `arr[arr.length - 1]`"
+why: "`arr.at(-1)` reads as 'last element' and names `arr` once; `arr[arr.length - 1]` restates the array and does index arithmetic. Taught rather than autofixed because `.at` differs subtly on exotic indexables (strings, typed arrays) and the index expression can have side effects."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A[$A.length - 1]"
+skill_prose: |
+  Index from the end with `arr.at(-1)` instead of `arr[arr.length - 1]`. `.at` takes
+  negative indices, so it reads as 'the last element' and mentions the array once
+  rather than twice. (`.at` is ES2022 — fine for modern runtimes; reach for the
+  classic form only when targeting environments without it.)
+examples:
+  bad: "const last = items[items.length - 1];"
+  good: "const last = items.at(-1);"
+---
+id: prefer-nullish-coalescing
+language: typescript
+title: "Use `??` instead of `||` for defaults"
+why: "`a || b` falls through on every falsy value, so `0`, `\"\"`, and `false` get replaced by the default; `a ?? b` only does so for `null`/`undefined`. Which you want is a semantic judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When supplying a default for a possibly-missing value, prefer `a ?? b` over
+  `a || b`. `||` treats every falsy value — `0`, `""`, `false`, `NaN` — as absent, so
+  `count || 10` turns a real `0` into `10`. `??` substitutes only for `null`/
+  `undefined`, which is almost always what 'use the default when unset' means. Keep
+  `||` when you genuinely want any falsy value to trigger the fallback.
+---
+id: no-nested-ternary
+language: typescript
+title: "Avoid nested ternary expressions"
+why: "A ternary inside another (`a ? b : c ? d : e`) is hard to read and easy to mis-bracket. Whether to unfold it is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Don't nest ternaries — `cond1 ? a : cond2 ? b : c` packs branching logic into one
+  hard-to-scan line. Unfold it into early returns, an `if`/`else if` chain, or a
+  lookup map. A single `cond ? a : b` is fine; once you'd nest a second `?:`, switch
+  to statements.

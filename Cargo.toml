@@ -5,7 +5,7 @@ members = ["crates/idiomatic-core", "crates/idiomatic-cli", "crates/idiomatic-py
 [workspace.package]
 edition = "2021"
 license = "MIT"
-version = "0.1.1"
+version = "0.1.2"
 repository = "https://github.com/joeblackwaslike/idiomatic"
 
 [workspace.dependencies]

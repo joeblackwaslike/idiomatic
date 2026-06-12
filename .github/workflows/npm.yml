@@ -81,9 +81,12 @@ jobs:
         with:
           path: crates/idiomatic-node/artifacts
       - name: Move binaries into per-platform npm packages
-        run: npx napi artifacts --output-dir artifacts --dist npm
+        # napi-cli v3 renamed `--dist` to `--npm-dir`.
+        run: npx napi artifacts --output-dir artifacts --npm-dir npm
       - name: Publish per-platform packages
-        run: npx napi prepublish -t npm --skip-gh-release
+        # napi-cli v3 made the GitHub release opt-in (`--gh-release`); omitting it
+        # skips release creation, which is what we want — cargo-dist owns the GH release.
+        run: npx napi prepublish -t npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish root package

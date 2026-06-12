@@ -252,3 +252,105 @@ skill_prose: |
   name that describes the whole. When a file accumulates unrelated helpers, types, and
   side effects, split it along the seams so each module can be understood, tested, and
   tree-shaken on its own. This is an architectural judgment, so it's taught.
+---
+id: prefer-object-shorthand
+language: typescript
+title: "Use object property shorthand (`{ x }` not `{ x: x }`)"
+why: "When a property name matches the variable it's assigned from, shorthand is shorter and idiomatic with identical behavior."
+severity: info
+fix_policy: autofix
+rule:
+  kind: pair
+  all:
+    - has:
+        field: key
+        pattern: "$K"
+    - has:
+        field: value
+        pattern: "$K"
+fix: "$K"
+skill_prose: |
+  Use shorthand when a property's name equals the variable supplying it: write
+  `{ x, y }` instead of `{ x: x, y: y }`. It's identical in behavior and the standard
+  style. (Only bare `name: name` pairs are rewritten — computed keys, method values,
+  and `name: expr` are left alone.)
+examples:
+  bad: "const o = { x: x };"
+  good: "const o = { x };"
+---
+id: prefer-template
+language: typescript
+title: "Use a template literal instead of string concatenation"
+why: "`` `Hello ${name}` `` reads in order and avoids quote-and-plus juggling; `\"Hello \" + name` is noisier and error-prone. Taught rather than autofixed because turning each operand into a `${}` placeholder isn't a mechanical splice."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  all:
+    - pattern: "$A + $B"
+    - has:
+        stopBy: neighbor
+        kind: string
+skill_prose: |
+  Build strings with template literals — `` `Hello ${name}, you have ${count} new` ``
+  — instead of `"Hello " + name + ", you have " + count + " new"`. The template reads
+  left to right with the values inline, and you stop juggling quotes and `+`. Plain
+  concatenation of two non-string values isn't affected.
+examples:
+  bad: "const m = \"Hello \" + name;"
+  good: "const m = `Hello ${name}`;"
+---
+id: no-throw-literal
+language: typescript
+title: "Throw an `Error`, not a string or number literal"
+why: "Throwing a literal loses the stack trace and the `.message`/`.name` contract every catch site and logger relies on. Taught rather than autofixed because the right Error subtype and message are a judgment call."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  kind: throw_statement
+  has:
+    stopBy: neighbor
+    any:
+      - kind: string
+      - kind: number
+skill_prose: |
+  Always throw an `Error` (or a subclass), never a bare string or number:
+  `throw new Error("boom")`, not `throw "boom"`. Only `Error` objects carry a stack
+  trace and the `name`/`message` properties that catch blocks, loggers, and error
+  reporters expect. Define a custom `class XError extends Error` when callers need to
+  branch on the failure type.
+examples:
+  bad: "throw \"boom\";"
+  good: "throw new Error(\"boom\");"
+---
+id: prefer-optional-catch-binding
+language: typescript
+title: "Omit the catch binding when it's unused"
+why: "An empty `catch (e) {}` binds an error it never uses; `catch {}` says that directly. The empty body proves the binding is unused, so the rewrite is safe."
+severity: info
+fix_policy: autofix
+rule:
+  pattern:
+    context: "try {} catch ($E) {}"
+    selector: catch_clause
+fix: "catch {}"
+skill_prose: |
+  When a catch block doesn't use the error, drop the binding: `catch {}` instead of
+  `catch (e) {}` (the optional catch binding, ES2019). It states that the error is
+  intentionally ignored. (Note an empty catch is often itself a smell — make sure you
+  really mean to swallow the error rather than log or rethrow it.)
+examples:
+  bad: "try { f(); } catch (e) {}"
+  good: "try { f(); } catch {}"
+---
+id: prefer-for-of
+language: typescript
+title: "Use `for...of` instead of a C-style index loop over an array"
+why: "`for (const x of xs)` iterates values directly; the `for (let i = 0; i < xs.length; i++)` form exists to compute indices you usually don't need. Whether the index is actually needed is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Iterate arrays with `for (const item of items)` rather than
+  `for (let i = 0; i < items.length; i++)` followed by `items[i]`. The `for...of`
+  form names the element and drops the index bookkeeping. When you genuinely need the
+  index too, reach for `items.forEach((item, i) => ...)` or `for (const [i, item] of
+  items.entries())` instead of falling back to the manual counter.

@@ -270,3 +270,134 @@ skill_prose: |
   letters. The conventional throwaways — `i`/`j` for indices, `x` in a short
   lambda/comprehension, `k`/`v` when unpacking dict items — are fine in their tiny
   scope; reach for a real name the moment the value outlives a line or two.
+---
+id: dict-get-default
+language: python
+title: "Use `dict.get(key, default)` instead of an `in`-check ternary"
+why: "`d[k] if k in d else default` looks up `k` twice and is noisier than `d.get(k, default)`. Taught rather than autofixed because `.get` skips a custom `__getitem__`/`__missing__`, so it isn't always equivalent."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$D[$K] if $K in $D else $DEFAULT"
+skill_prose: |
+  Replace `value = d[k] if k in d else default` with `value = d.get(k, default)`.
+  The ternary hashes/looks up `k` twice and restates `d`; `.get` does it once and
+  reads as the intent. (Keep the explicit form when `d` is a `defaultdict` or
+  overrides `__getitem__`/`__missing__`, where `.get` would behave differently.)
+examples:
+  bad: "value = cfg[key] if key in cfg else fallback"
+  good: "value = cfg.get(key, fallback)"
+---
+id: enumerate-over-range-len
+language: python
+title: "Use `enumerate` instead of `range(len(...))`"
+why: "`for i in range(len(xs))` then `xs[i]` re-indexes on every iteration and hides intent; `enumerate(xs)` yields index and item together. No safe autofix — the loop body's `xs[i]` accesses must be rewritten."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "for $I in range(len($XS)):\n    $$$BODY"
+skill_prose: |
+  Iterate with `for i, item in enumerate(xs):` instead of
+  `for i in range(len(xs)):` followed by `xs[i]`. `enumerate` hands you the index
+  and the element at once, so the body stops re-indexing. Pass `enumerate(xs, 1)`
+  when you want a 1-based counter.
+examples:
+  bad: "for i in range(len(items)):\n    print(items[i])"
+  good: "for i, item in enumerate(items):\n    print(item)"
+---
+id: f-string-over-format
+language: python
+title: "Use an f-string instead of `str.format`"
+why: "f-strings put the value next to the placeholder, so they're easier to read and faster than `\"...\".format(...)`. Taught rather than autofixed: rewriting positional/named fields back into inline expressions isn't mechanical."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  kind: call
+  all:
+    - pattern: "$RECV.format($$$ARGS)"
+    - has:
+        field: function
+        has:
+          field: object
+          kind: string
+skill_prose: |
+  Prefer f-strings over `"...".format(...)`. `f"Hello {name}"` keeps each value
+  inline where it's interpolated, which is clearer and faster than threading
+  arguments through `.format`. The same advice applies to `%`-formatting
+  (`"%s" % x`), though this rule only flags `.format`. Keep `.format` when the
+  template is built dynamically or reused with different arguments.
+examples:
+  bad: "msg = \"Hello {}\".format(name)"
+  good: "msg = f\"Hello {name}\""
+---
+id: star-import
+language: python
+title: "Import names explicitly instead of `from x import *`"
+why: "A wildcard import dumps unknown names into the namespace, shadows locals silently, and defeats static analysis and dead-code detection. Name what you use."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "from $MODULE import *"
+skill_prose: |
+  Never use `from module import *`. It pulls an unknown set of names into the
+  current namespace — which can shadow your own bindings without warning — and makes
+  it impossible for readers and tools to see where a name came from. Import exactly
+  what you use: `from module import thing, other`.
+examples:
+  bad: "from os import *"
+  good: "from os import getcwd"
+---
+id: redundant-lambda
+language: python
+title: "Pass the function directly instead of wrapping it in a lambda"
+why: "`lambda x: f(x)` is just `f` with extra indirection. Taught rather than autofixed: the unwrap is only safe when the wrapped callable doesn't close over the parameter (e.g. `lambda x: x.method(x)` would leak `x`)."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "lambda $X: $F($X)"
+skill_prose: |
+  When a lambda only forwards its argument to a call — `lambda x: f(x)` — pass the
+  callable itself: `f`. The wrapper adds a stack frame and noise for no behavior.
+  (Don't unwrap when the callee references the parameter, like `lambda x: x.run(x)`,
+  or when the lambda fixes extra arguments, like `lambda x: f(x, mode=1)`.)
+examples:
+  bad: "handler = lambda x: process(x)"
+  good: "handler = process"
+---
+id: compare-true-false
+language: python
+title: "Test truthiness instead of `== True` / `== False`"
+why: "`if x == True:` is redundant and subtly wrong — `2 == True` is `False` even though `2` is truthy. No safe autofix: `x == True` is not equivalent to `x` for non-bool values."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$X == True"
+    - pattern: "$X == False"
+    - pattern: "True == $X"
+    - pattern: "False == $X"
+skill_prose: |
+  Don't compare to the boolean literals. Write `if x:` and `if not x:` rather than
+  `if x == True:` / `if x == False:`. The explicit comparison is noise, and it's
+  outright wrong for non-bool truthy values — `2 == True` is `False` while `if 2:`
+  is taken. When you truly must accept only the singleton `True`, say `x is True`.
+examples:
+  bad: "if flag == True:\n    pass"
+  good: "if flag:\n    pass"
+---
+id: isinstance-tuple
+language: python
+title: "Pass a tuple to `isinstance` instead of chaining `or`"
+why: "`isinstance(x, A) or isinstance(x, B)` repeats the subject and the call; `isinstance(x, (A, B))` checks all types in one pass and reads better. Taught rather than autofixed because longer `or` chains and surrounding boolean context vary."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "isinstance($X, $A) or isinstance($X, $B)"
+skill_prose: |
+  Collapse `isinstance(x, A) or isinstance(x, B)` into `isinstance(x, (A, B))`.
+  `isinstance` accepts a tuple of types and returns true if `x` matches any of them,
+  so you check once instead of repeating the subject. Extend the tuple for more
+  types: `isinstance(x, (int, float, complex))`.
+examples:
+  bad: "if isinstance(x, int) or isinstance(x, float):\n    pass"
+  good: "if isinstance(x, (int, float)):\n    pass"

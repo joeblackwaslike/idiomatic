@@ -19,6 +19,13 @@ expression: ids
 - guard-clauses
 - comprehension-over-loop
 - descriptive-names
+- dict-get-default
+- enumerate-over-range-len
+- f-string-over-format
+- star-import
+- redundant-lambda
+- compare-true-false
+- isinstance-tuple
 - triple-equals
 - optional-chaining
 - no-console
@@ -35,3 +42,8 @@ expression: ids
 - prefer-early-return
 - boolean-naming
 - cohesive-modules
+- prefer-object-shorthand
+- prefer-template
+- no-throw-literal
+- prefer-optional-catch-binding
+- prefer-for-of

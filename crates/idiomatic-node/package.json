@@ -1,6 +1,6 @@
 {
   "name": "idiomatic-node",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Idiom enforcement for Python and TypeScript — lint, autofix, and skill generation.",
   "license": "MIT",
   "main": "index.js",

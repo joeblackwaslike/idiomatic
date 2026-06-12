@@ -31,7 +31,10 @@ jobs:
           - host: macos-14
             target: aarch64-apple-darwin
             build: npx napi build --platform --release --target aarch64-apple-darwin
-          - host: macos-13
+          # Cross-compiled on the Apple-Silicon runner: same OS + linker, just a
+          # different arch slice (Apple clang targets x86_64 natively). The Intel
+          # `macos-13` runners are being retired and queue indefinitely.
+          - host: macos-14
             target: x86_64-apple-darwin
             build: npx napi build --platform --release --target x86_64-apple-darwin
           - host: ubuntu-latest

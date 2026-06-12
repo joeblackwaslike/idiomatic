@@ -426,7 +426,14 @@ why: "`[x for x in xs]` copies the iterable while applying no transform or filte
 severity: info
 fix_policy: autofix
 rule:
-  pattern: "[$X for $X in $IT]"
+  all:
+    - pattern: "[$X for $X in $IT]"
+    # Guard: `[x async for x in xs]` also matches the pattern, but `list(xs)` would
+    # drop the async iteration (a runtime bug). Exclude any comprehension containing
+    # the `async` keyword. The word boundary keeps it from excluding an iterable that
+    # merely contains the substring (e.g. `[x for x in async_items]`).
+    - not:
+        regex: "\\basync\\b"
 fix: "list($IT)"
 skill_prose: |
   When a list comprehension has no transform and no condition — `[x for x in xs]` —

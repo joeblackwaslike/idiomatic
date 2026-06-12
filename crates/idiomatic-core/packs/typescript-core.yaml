@@ -358,17 +358,17 @@ skill_prose: |
 id: prefer-string-startswith
 language: typescript
 title: "Use `.startsWith()` instead of `.indexOf(x) === 0`"
-why: "`s.startsWith(x)` states the intent; `s.indexOf(x) === 0` is the pre-ES2015 idiom and scans for a position you then compare. The `=== 0` form is exactly equivalent, so the rewrite is safe."
+why: "`s.startsWith(x)` states the intent; `s.indexOf(x) === 0` is the pre-ES2015 idiom and scans for a position you then compare. Taught rather than autofixed: `Array.indexOf` matches the same shape but arrays have no `.startsWith`, and ast-grep can't tell a string receiver from an array, so a blind rewrite would crash array code at runtime."
 severity: warn
-fix_policy: autofix
+fix_policy: warn-and-instruct
 rule:
   pattern: "$S.indexOf($X) === 0"
-fix: "$S.startsWith($X)"
 skill_prose: |
-  Test a prefix with `s.startsWith(x)` instead of `s.indexOf(x) === 0`. It reads as
-  the boolean it is and doesn't compute an index you immediately compare away. Use
-  `s.endsWith(x)` for suffixes. (Only the `=== 0` form is autofixed; other index
-  comparisons are left alone.)
+  When the receiver is a string, test a prefix with `s.startsWith(x)` instead of
+  `s.indexOf(x) === 0` — it reads as the boolean it is and doesn't compute an index
+  you immediately compare away. Use `s.endsWith(x)` for suffixes. (Don't apply this to
+  an array: `arr.indexOf(x) === 0` means "x is the first element" and arrays have no
+  `.startsWith` — use `arr[0] === x` there.)
 examples:
   bad: "const ok = s.indexOf(\"a\") === 0;"
   good: "const ok = s.startsWith(\"a\");"

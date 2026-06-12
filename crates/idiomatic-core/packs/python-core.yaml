@@ -401,3 +401,109 @@ skill_prose: |
 examples:
   bad: "if isinstance(x, int) or isinstance(x, float):\n    pass"
   good: "if isinstance(x, (int, float)):\n    pass"
+---
+id: open-without-context
+language: python
+title: "Open files with a `with` block, not a bare `open()`"
+why: "Binding `f = open(...)` leaks the handle if an exception fires before `close()`. A `with` block closes it deterministically. No safe autofix — the matching `close()` and the block scope must be restructured."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$VAR = open($$$ARGS)"
+skill_prose: |
+  Open files in a `with` block — `with open(path) as f:` — instead of binding the
+  handle to a variable. The context manager closes the file even if the body raises,
+  whereas a bare `f = open(...)` leaks the descriptor on any early exit. (While here,
+  pass an explicit `encoding=` so text mode doesn't depend on the platform default.)
+examples:
+  bad: "f = open(\"data.txt\")"
+  good: "with open(\"data.txt\") as f:\n    pass"
+---
+id: unnecessary-comprehension
+language: python
+title: "Use `list(iterable)` instead of an identity comprehension"
+why: "`[x for x in xs]` copies the iterable while applying no transform or filter — `list(xs)` does the same thing, faster and clearer."
+severity: info
+fix_policy: autofix
+rule:
+  all:
+    - pattern: "[$X for $X in $IT]"
+    # Guard: `[x async for x in xs]` also matches the pattern, but `list(xs)` would
+    # drop the async iteration (a runtime bug). Exclude any comprehension containing
+    # the `async` keyword. The word boundary keeps it from excluding an iterable that
+    # merely contains the substring (e.g. `[x for x in async_items]`).
+    - not:
+        regex: "\\basync\\b"
+fix: "list($IT)"
+skill_prose: |
+  When a list comprehension has no transform and no condition — `[x for x in xs]` —
+  it's just an eager copy, so write `list(xs)`. (The same goes for `{x for x in xs}`
+  → `set(xs)`.) Keep the comprehension as soon as there's a real expression
+  (`[f(x) for x in xs]`) or a filter (`[x for x in xs if pred(x)]`).
+examples:
+  bad: "ys = [x for x in xs]"
+  good: "ys = list(xs)"
+---
+id: chained-comparison
+language: python
+title: "Chain comparisons instead of joining them with `and`"
+why: "`a < b and b < c` repeats `b` and reads as two checks; Python's `a < b < c` chains them in one expression that evaluates `b` once."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$A < $B and $B < $C"
+    - pattern: "$A <= $B and $B <= $C"
+    - pattern: "$A > $B and $B > $C"
+    - pattern: "$A >= $B and $B >= $C"
+skill_prose: |
+  Use Python's comparison chaining — `if low <= x <= high:` — instead of
+  `low <= x and x <= high`. The chained form names the middle operand once, evaluates
+  it once, and reads like the mathematical range it represents.
+examples:
+  bad: "if a < b and b < c:\n    pass"
+  good: "if a < b < c:\n    pass"
+---
+id: string-startswith-tuple
+language: python
+title: "Pass a tuple to `startswith`/`endswith` instead of chaining `or`"
+why: "`s.startswith(a) or s.startswith(b)` repeats the subject and call; `startswith` accepts a tuple of prefixes and tests them all in one call."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$S.startswith($A) or $S.startswith($B)"
+    - pattern: "$S.endswith($A) or $S.endswith($B)"
+skill_prose: |
+  `str.startswith` and `str.endswith` accept a tuple, so collapse
+  `name.startswith(\"a\") or name.startswith(\"b\")` into
+  `name.startswith((\"a\", \"b\"))`. One call, no repeated subject, and it extends to
+  any number of prefixes.
+examples:
+  bad: "if name.startswith(\"test_\") or name.startswith(\"Test\"):\n    pass"
+  good: "if name.startswith((\"test_\", \"Test\")):\n    pass"
+---
+id: nested-ternary
+language: python
+title: "Avoid nested conditional expressions"
+why: "A conditional expression nested inside another (`a if p else (b if q else c)`) is hard to parse at a glance. Whether to unfold it into `if`/`elif` is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Don't nest conditional expressions — `a if p else b if q else c` forces the reader
+  to untangle precedence and branches in one line. Pull it apart into an `if`/`elif`/
+  `else` block, a lookup table/`dict`, or a small helper with early returns. A single
+  `x if cond else y` is fine; the moment you nest, prefer statements.
+---
+id: type-annotations
+language: python
+title: "Annotate function signatures with type hints"
+why: "Type hints on parameters and return values document intent, enable static checkers (mypy/pyright) and editor tooling, and catch whole classes of bugs. Where annotations add value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give public functions and methods type hints — `def parse(raw: str) -> Config:` —
+  so callers, type checkers, and editors know the contract. Annotate parameters and
+  the return type; reach for `typing`/`collections.abc` (`Sequence`, `Mapping`,
+  `Optional`, `Iterable`) for containers. Local throwaway scripts can stay loose, but
+  anything reused or shared benefits from explicit types.

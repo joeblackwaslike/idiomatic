@@ -130,7 +130,9 @@ why: "`assert (cond, msg)` asserts a 2-tuple, which is always truthy, so the che
 severity: warn
 fix_policy: warn-and-instruct
 rule:
-  pattern: "assert ($A, $B)"
+  any:
+    - pattern: "assert ($A, $B)"
+    - pattern: "assert ($A, $B, $$$REST)"
 skill_prose: |
   `assert (cond, "message")` does not do what it looks like: the parentheses make a
   tuple, and a non-empty tuple is always truthy, so the assertion can never fail.

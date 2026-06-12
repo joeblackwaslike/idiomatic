@@ -147,7 +147,7 @@ examples:
 id: prefer-includes
 language: typescript
 title: "Use `.includes()` instead of `.indexOf(x) !== -1`"
-why: "`.includes(x)` states the membership test directly; `.indexOf(x) !== -1` is an idiom from before `includes` existed and is easy to get wrong (`> -1` vs `>= 0`)."
+why: "`.includes(x)` states the membership test directly; `.indexOf(x) !== -1` is an idiom from before `includes` existed and is easy to get wrong (`> -1` vs `>= 0`). The one divergence — `includes` finds `NaN`, `indexOf` never does — only affects a test that was already always-false, so correct code is unchanged."
 severity: warn
 fix_policy: autofix
 rule:
@@ -157,6 +157,10 @@ skill_prose: |
   Test membership with `arr.includes(x)` rather than `arr.indexOf(x) !== -1`. It
   reads as the boolean it is and avoids the off-by-one traps of comparing an index.
   (Only the `!== -1` form is autofixed; `=== -1` and `>= 0` variants are left alone.)
+  One edge: `includes` uses SameValueZero, so it matches `NaN` where `indexOf` —
+  which uses strict `===` — never does. That only changes the result of an
+  `indexOf(NaN) !== -1` test that was already permanently false, so working code is
+  unaffected; reach for a custom `.some(Number.isNaN)` if you genuinely test for `NaN`.
 examples:
   bad: "const has = arr.indexOf(x) !== -1;"
   good: "const has = arr.includes(x);"

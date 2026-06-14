@@ -1,6 +1,6 @@
 {
-  "name": "idiomatic-node-darwin-arm64",
-  "version": "0.1.5",
+  "name": "@idiomatic/node-darwin-arm64",
+  "version": "0.1.6",
   "cpu": [
     "arm64"
   ],
@@ -15,5 +15,8 @@
   },
   "os": [
     "darwin"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

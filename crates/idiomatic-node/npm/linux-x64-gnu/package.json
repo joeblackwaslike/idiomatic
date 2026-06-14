@@ -1,6 +1,6 @@
 {
-  "name": "idiomatic-node-linux-x64-gnu",
-  "version": "0.1.5",
+  "name": "@idiomatic/node-linux-x64-gnu",
+  "version": "0.1.6",
   "cpu": [
     "x64"
   ],
@@ -18,5 +18,8 @@
   ],
   "libc": [
     "glibc"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -1,11 +1,12 @@
 {
-  "name": "idiomatic-node",
-  "version": "0.1.5",
+  "name": "@idiomatic/node",
+  "version": "0.1.6",
   "description": "Idiom enforcement for Python and TypeScript — lint, autofix, and skill generation.",
   "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
   "files": ["index.js", "index.d.ts"],
+  "publishConfig": { "access": "public" },
   "napi": {
     "binaryName": "idiomatic",
     "targets": [

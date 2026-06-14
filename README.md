@@ -107,10 +107,11 @@ idiomatic.render_skill("typescript")                        # SKILL.md text for 
 
 ### From Node
 
-The same engine is available to JavaScript/TypeScript via the napi addon:
+The same engine is available to JavaScript/TypeScript via the napi addon
+(`npm install @idiomatic/node`):
 
 ```js
-import { lint, autofix, renderSkill } from 'idiomatic-node';
+import { lint, autofix, renderSkill } from '@idiomatic/node';
 
 autofix("if x == None:\n    pass\n", "python");  // { fixed: 'if x is None:\n    pass\n', count: 1 }
 renderSkill("typescript");                        // SKILL.md text for TypeScript

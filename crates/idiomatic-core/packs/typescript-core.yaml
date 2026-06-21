@@ -729,6 +729,363 @@ skill_prose: |
   `for (const item of arr)` for values, `arr.entries()` when you need the index, or
   `arr.forEach`. Reserve `for...in` for plain objects (with a `hasOwnProperty` guard).
 ---
+id: prefer-not-includes
+language: typescript
+title: "Use `!arr.includes(x)` instead of `.indexOf(x) === -1`"
+why: "`!arr.includes(x)` states the absence test directly; `.indexOf(x) === -1` is the pre-ES2015 idiom and is easy to get wrong. The only divergence — `includes` finds `NaN` — affects a test that was already always-false, so correct code is unchanged."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "$A.indexOf($X) === -1"
+fix: "!$A.includes($X)"
+skill_prose: |
+  Test for absence with `!arr.includes(x)` rather than `arr.indexOf(x) === -1`. It
+  reads as the boolean it is and avoids comparing an index. (See `prefer-includes`
+  for the `!== -1` form and the `NaN` edge case — both are equivalent for working code.)
+examples:
+  bad: "const no = arr.indexOf(x) === -1;"
+  good: "const no = !arr.includes(x);"
+---
+id: prefer-date-now
+language: typescript
+title: "Use `Date.now()` instead of `new Date().getTime()`"
+why: "`Date.now()` returns the current epoch milliseconds directly; `new Date().getTime()` allocates a `Date` object just to read its time. They're exactly equivalent."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "new Date().getTime()"
+fix: "Date.now()"
+skill_prose: |
+  Get the current timestamp with `Date.now()` instead of `new Date().getTime()` (or
+  `+new Date()`). It skips the throwaway `Date` allocation and reads as 'now in ms'.
+examples:
+  bad: "const t = new Date().getTime();"
+  good: "const t = Date.now();"
+---
+id: prefer-object-hasown
+language: typescript
+title: "Use `Object.hasOwn` instead of `Object.prototype.hasOwnProperty.call`"
+why: "`Object.hasOwn(obj, key)` (ES2022) is the purpose-built, readable replacement for the `Object.prototype.hasOwnProperty.call(obj, key)` incantation used to safely check own properties."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "Object.prototype.hasOwnProperty.call($O, $K)"
+fix: "Object.hasOwn($O, $K)"
+skill_prose: |
+  Check for an own property with `Object.hasOwn(obj, key)` instead of the verbose
+  `Object.prototype.hasOwnProperty.call(obj, key)`. Both sidestep a shadowed or
+  null-prototype `hasOwnProperty`, but `Object.hasOwn` says it in one call.
+examples:
+  bad: "const has = Object.prototype.hasOwnProperty.call(obj, key);"
+  good: "const has = Object.hasOwn(obj, key);"
+---
+id: prefer-number-isfinite
+language: typescript
+title: "Use `Number.isFinite` instead of the global `isFinite`"
+why: "The global `isFinite` coerces its argument first, so `isFinite(\"42\")` is `true`. `Number.isFinite` returns true only for actual finite numbers. No safe autofix: the two differ for non-number arguments."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "isFinite($X)"
+skill_prose: |
+  Use `Number.isFinite(x)`, not the global `isFinite(x)`. The global coerces first, so
+  `isFinite("42")` is `true` and `isFinite(null)` is `true` — surprising for a finiteness
+  check. `Number.isFinite` is false for any non-number. Wrap explicitly with
+  `Number.isFinite(Number(x))` if you do want coercion.
+examples:
+  bad: "if (isFinite(n)) {\n  return;\n}"
+  good: "if (Number.isFinite(n)) {\n  return;\n}"
+---
+id: parse-int-radix
+language: typescript
+title: "Always pass a radix to `parseInt`"
+why: "`parseInt(s)` infers the base from the string, so a leading `0x` parses as hex and historically `0`-prefixed strings parsed as octal. Passing `10` makes the base explicit and predictable. No safe autofix: the intended radix is a judgment call."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "parseInt($X)"
+skill_prose: |
+  Always give `parseInt` an explicit radix: `parseInt(s, 10)`. Without it the base is
+  inferred from the string's prefix, which is a footgun for user input. Use `Number(s)`
+  or the unary `+s` when you want a full numeric parse rather than integer truncation.
+examples:
+  bad: "const n = parseInt(s);"
+  good: "const n = parseInt(s, 10);"
+---
+id: no-new-wrappers
+language: typescript
+title: "Don't use `new` with `String`/`Number`/`Boolean`"
+why: "`new String(x)` makes a wrapper *object*, not a primitive, so `typeof` is `\"object\"` and `new Boolean(false)` is truthy. Called without `new`, these are useful conversion functions. No safe autofix: dropping `new` is the fix but intent must be confirmed."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "new String($$$ARGS)"
+    - pattern: "new Number($$$ARGS)"
+    - pattern: "new Boolean($$$ARGS)"
+skill_prose: |
+  Never call `String`/`Number`/`Boolean` with `new`. The constructor form builds a
+  wrapper object — `typeof new String("x") === "object"`, and `new Boolean(false)` is
+  truthy — which breaks equality and type checks. Call them as plain functions for
+  conversion (`String(x)`, `Number(x)`, `Boolean(x)`) or use a literal.
+examples:
+  bad: "const s = new String(x);"
+  good: "const s = String(x);"
+---
+id: prefer-unknown-in-catch
+language: typescript
+title: "Type a caught error as `unknown`, not `any`"
+why: "A `catch` variable can be anything that was thrown, so `unknown` is the honest type and forces a narrowing check before use; `any` silently disables checking on it. A judgment call about how to narrow, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Type a caught error as `unknown` (the default under `useUnknownInCatchVariables`)
+  rather than `any`: `catch (err: unknown)`. Anything can be thrown, so you must
+  narrow before using it — `if (err instanceof Error) ...` — which is exactly the
+  safety `any` would throw away.
+---
+id: prefer-as-const
+language: typescript
+title: "Use `as const` for literal/tuple constants"
+why: "`as const` freezes a value to its narrowest literal type — readonly tuples, literal unions — instead of the widened `string`/`number[]`. Whether you want the narrow type is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Annotate fixed literal data with `as const` — `const ROLES = ["admin", "user"] as const;`
+  — so it infers a readonly tuple of literal types (`readonly ["admin", "user"]`)
+  rather than the widened `string[]`. This powers literal unions
+  (`type Role = typeof ROLES[number]`) and prevents accidental mutation.
+---
+id: prefer-satisfies
+language: typescript
+title: "Use `satisfies` to check a value without widening it"
+why: "`satisfies T` validates that a value conforms to `T` while preserving its specific inferred type; an annotation `: T` validates but widens to `T`, losing literal detail. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Use `satisfies` when you want a value checked against a type but keep its narrow
+  inferred shape: `const config = { port: 8080 } satisfies Config;` lets you both
+  catch typos *and* still see `config.port` as the literal `8080`. Prefer it over a
+  `: Config` annotation, which would widen the properties.
+---
+id: prefer-type-imports
+language: typescript
+title: "Use `import type` for type-only imports"
+why: "`import type { T }` marks an import as erasable, so bundlers and `isolatedModules` builds drop it cleanly and never emit a runtime dependency for something used only in type position. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an import is used only in type positions, write `import type { User } from "./user"`
+  (or `import { type User, makeUser }` for mixed). It guarantees the binding is erased at
+  compile time, avoids accidental runtime imports and circular-dependency cycles, and is
+  required under `verbatimModuleSyntax`/`isolatedModules`.
+---
+id: avoid-type-assertions
+language: typescript
+title: "Prefer narrowing over `as` type assertions"
+why: "`value as T` overrides the checker without proof; if you're wrong the bug surfaces later at runtime. Type guards and narrowing prove the type instead. When an assertion is genuinely needed is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Reach for narrowing — `typeof`/`instanceof` checks, user-defined type guards
+  (`x is T`), discriminant checks — before an `as` assertion. Assertions tell the
+  compiler 'trust me' without evidence, so a wrong one becomes a runtime crash. Keep
+  assertions for the rare cases the checker genuinely can't follow (and never reach
+  for `as any` or double assertions `as unknown as T`).
+---
+id: prefer-readonly-array
+language: typescript
+title: "Use `readonly` arrays/properties for data you don't mutate"
+why: "`readonly T[]` / `ReadonlyArray<T>` and `readonly` fields make immutability part of the type, so accidental mutation is a compile error and intent is documented. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Mark arrays and object fields you don't intend to mutate as `readonly` —
+  `function sum(xs: readonly number[])`, `readonly id: string`. It documents intent and
+  turns accidental `push`/reassignment into a compile error. Use it especially on
+  function parameters to promise you won't mutate the caller's data.
+---
+id: prefer-discriminated-unions
+language: typescript
+title: "Model variants with a discriminated union, not optional fields"
+why: "A discriminated union (`{ kind: \"a\"; ... } | { kind: \"b\"; ... }`) lets the compiler narrow exhaustively and makes illegal states unrepresentable; a flat type with many optional fields allows nonsensical combinations. A modeling judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a type has mutually exclusive shapes, model it as a discriminated union with a
+  literal tag — `type Result = { ok: true; value: V } | { ok: false; error: E }` —
+  instead of one object with a pile of optional fields. The tag lets TypeScript narrow
+  each branch and flags missing cases in a `switch`, so illegal combinations can't compile.
+---
+id: prefer-record-type
+language: typescript
+title: "Type keyed objects with `Record<K, V>`"
+why: "`Record<string, number>` states 'object whose values are numbers' concisely and precisely; an index signature written by hand (`{ [k: string]: number }`) is noisier. A small style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Describe a dictionary-shaped object with `Record<K, V>` — `Record<string, User>`,
+  `Record<Status, Handler>` — rather than spelling out an index signature. With a
+  union key type it also forces you to cover every key. (For truly dynamic keys at
+  runtime, prefer a `Map`; see `prefer-map-over-record`.)
+---
+id: no-empty-interface
+language: typescript
+title: "Don't declare an empty interface"
+why: "`interface Foo {}` accepts any non-nullish value (it has no requirements), which usually signals a placeholder or a misunderstanding. Extend, alias, or remove it. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Avoid `interface Foo {}`. An interface with no members imposes no constraints, so it
+  behaves like `unknown`-ish `{}` and rarely means what the author intended. If you're
+  re-exporting a type, use `type Foo = Bar`; if extending, `interface Foo extends Bar {}`;
+  if it's a placeholder, leave a TODO with a real shape instead.
+---
+id: prefer-explicit-return-types
+language: typescript
+title: "Annotate return types on exported functions"
+why: "An explicit return type documents the contract, keeps inference from silently changing it when the body changes, and produces clearer errors at the definition rather than at distant call sites. Where it adds value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give exported/public functions an explicit return type — `export function load(): Config`
+  — so the contract is stated, an accidental change to the body is caught at the
+  definition, and editor hovers are stable. Local helpers can lean on inference; the
+  payoff is largest at module and API boundaries.
+---
+id: no-else-after-return
+language: typescript
+title: "Drop `else` after a returning `if`"
+why: "When the `if` branch ends in `return`/`throw`, the `else` is redundant and adds a level of nesting; the else-body can dedent to the main flow. A small structural judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an `if` block ends by returning or throwing, drop the `else` and let the rest
+  of the function continue at the outer level: `if (!ok) return; doWork();` instead of
+  `if (!ok) { return; } else { doWork(); }`. It removes a nesting level and reads as a
+  guard clause.
+---
+id: no-lonely-if
+language: typescript
+title: "Use `else if` instead of an `if` nested alone in an `else`"
+why: "An `else` block whose only statement is an `if` should be written `else if`, which flattens the chain and reads as the multi-way branch it is. A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Collapse `else { if (cond) { ... } }` into `else if (cond) { ... }`. The lonely
+  nested `if` adds a brace level and obscures that this is one `if`/`else if`/`else`
+  ladder. (If the chain grows long or branches on one value, consider a `switch` or a
+  lookup map instead.)
+---
+id: prefer-switch-statement
+language: typescript
+title: "Use `switch` (or a map) for long `else if` chains on one value"
+why: "A chain of `else if` all testing the same variable against constants reads better as a `switch` (or a lookup table), which makes the dispatch obvious and lets the compiler check exhaustiveness over a union. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When several `else if`s all compare the same value to constants, switch to a
+  `switch` statement or a lookup object/`Map`. A `switch` over a discriminated union
+  also gives you exhaustiveness checking via a `never` default. Keep the `if` ladder
+  when branches test different expressions or ranges.
+---
+id: no-param-reassign
+language: typescript
+title: "Avoid reassigning function parameters"
+why: "Mutating a parameter detaches it from the value the caller passed, obscures data flow, and breaks `arguments`-mapping in non-strict code. Introducing a local is usually clearer. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Treat parameters as read-only inputs; assign to a clearly-named local instead of
+  reassigning the parameter (`const normalized = raw.trim()` rather than `raw = raw.trim()`).
+  It keeps the original argument visible for debugging and avoids surprising a reader who
+  expects a parameter to mean what was passed. Mutating an object a parameter *points at*
+  is a separate concern (see immutability).
+---
+id: limit-function-params
+language: typescript
+title: "Replace long parameter lists with an options object"
+why: "A function with many positional parameters forces callers to remember order and pass meaningless `undefined`s for skipped options; a single options object names each argument at the call site. Where the threshold lies is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function takes more than ~3 parameters — especially several of the same type
+  or several optional ones — accept a single options object: `createUser({ name, role,
+  active })`. Call sites become self-documenting, argument order stops mattering, and
+  adding an option doesn't churn every caller. Keep positional params for one or two
+  obvious, required arguments.
+---
+id: prefer-error-cause
+language: typescript
+title: "Preserve the original error with the `cause` option"
+why: "When you catch and rethrow a wrapped error, passing `{ cause: err }` keeps the original stack and message for debugging; dropping it loses the root cause. A judgment call about wrapping, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you catch an error and throw a more meaningful one, chain the original with the
+  `cause` option: `throw new Error("failed to load config", { cause: err })` (ES2022).
+  Loggers and `Error.prototype.stack` surface the chain, so you keep the root cause
+  instead of discarding it.
+---
+id: custom-error-classes
+language: typescript
+title: "Define custom `Error` subclasses for distinct failures"
+why: "A dedicated `class NotFoundError extends Error` lets callers branch with `instanceof` and carry structured fields, instead of string-matching `error.message`. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give distinct failure modes their own `Error` subclass — `class ValidationError extends
+  Error { constructor(public field: string) { super(`invalid ${field}`); this.name =
+  "ValidationError"; } }`. Callers can then `catch`/`instanceof` precisely and read typed
+  fields, rather than parsing `error.message`. Set `this.name` so logs identify the type.
+---
+id: prefer-string-pad
+language: typescript
+title: "Pad strings with `padStart`/`padEnd`"
+why: "`str.padStart(n, '0')` / `padEnd` express alignment and zero-padding directly; hand-rolled loops or slice-and-concat tricks are longer and error-prone. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Align or zero-pad strings with the built-ins — `String(n).padStart(2, "0")` for a
+  two-digit field, `label.padEnd(20)` to align columns — instead of manual loops or
+  `("00" + n).slice(-2)` tricks. They state the target width and fill character plainly.
+---
+id: prefer-trim-methods
+language: typescript
+title: "Use `trim`/`trimStart`/`trimEnd` for whitespace"
+why: "The built-in trim methods remove leading/trailing whitespace clearly and correctly across Unicode whitespace; regex `replace(/^\\s+|\\s+$/g, \"\")` is noisier and easier to get wrong. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Strip surrounding whitespace with `str.trim()`, or `trimStart()`/`trimEnd()` for one
+  side, rather than a `replace(/^\s+|\s+$/g, "")` regex. The methods say what they do and
+  handle the full Unicode whitespace set. (For trimming a *specific* prefix/suffix string,
+  reach for `slice`/`replace`, not `trim`.)
+---
+id: no-deep-relative-imports
+language: typescript
+title: "Avoid deep `../../../` relative import chains"
+why: "Long `../../../` paths are brittle (they break on any file move) and obscure where a module actually lives. Path aliases or package entry points are stabler. A project-structure judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Replace deep relative imports like `../../../core/utils` with a configured path alias
+  (`@/core/utils` via `tsconfig` `paths`) or a package boundary. Deep chains break
+  whenever a file moves and hide the real dependency. Keep short relative imports
+  (`./sibling`, `../parent`) for genuinely local references.
+---
+id: avoid-barrel-files
+language: typescript
+title: "Use barrel `index.ts` re-export files sparingly"
+why: "A barrel file that re-exports a whole directory can defeat tree-shaking, create import cycles, and slow type-checking and bundling as the project grows. Whether a barrel helps is a design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Be cautious with barrel files (`index.ts` that `export *` a directory). They're
+  convenient but can pull in far more than callers use (hurting tree-shaking), introduce
+  circular imports, and inflate build/type-check times at scale. Prefer importing from the
+  specific module; reserve barrels for small, stable public APIs of a package.
+---
 id: prefer-const-over-let
 language: typescript
 title: "Default to `const`; use `let` only when you reassign"

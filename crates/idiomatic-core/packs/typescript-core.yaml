@@ -1366,6 +1366,263 @@ skill_prose: |
   handle the negative case with an early return so the main path stays affirmative.
   Negation is fine; stacked or double negation is what to avoid.
 ---
+id: prefer-small-functions
+language: typescript
+title: "Keep functions small and single-purpose"
+why: "A function that does one thing is easier to name, test, and reuse than a long one juggling several concerns. Where to split is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Aim for functions that do one thing at one level of abstraction. When a function grows
+  long, mixes unrelated steps, or needs a comment to delimit 'sections', extract those
+  sections into named helpers. Smaller functions read like prose, are unit-testable in
+  isolation, and surface reuse. Don't over-fragment trivial logic — split along real seams.
+---
+id: avoid-flag-parameters
+language: typescript
+title: "Avoid boolean flag parameters that switch behavior"
+why: "A boolean argument like `render(true)` is meaningless at the call site and usually means the function does two things; splitting it into two functions is clearer. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  A boolean parameter that selects between two behaviors — `save(data, true)` — is
+  opaque at the call site and a sign the function has two jobs. Prefer two well-named
+  functions (`saveDraft` / `savePublished`) or, when a flag is genuinely a configuration
+  value, pass it as a named field of an options object so the call reads `save(data, {
+  publish: true })`.
+---
+id: prefer-early-continue
+language: typescript
+title: "Use `continue` to flatten loop bodies"
+why: "Skipping unwanted iterations with an early `continue` keeps the real work unindented, just as guard clauses do for functions. A structural judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Inside a loop, skip cases you don't care about with an early `continue` —
+  `if (!item.active) continue;` — instead of wrapping the whole body in `if (item.active)
+  { ... }`. The meaningful work stays at the left margin and the filter condition reads
+  up front.
+---
+id: extract-complex-conditions
+language: typescript
+title: "Name complex boolean conditions"
+why: "A multi-clause condition inline in an `if` is hard to parse and impossible to reuse; lifting it into a well-named `const isEligible = ...` documents intent. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an `if` condition combines several clauses, extract it into a named boolean —
+  `const isEligible = age >= 18 && hasConsent && !isBanned;` then `if (isEligible)`.
+  The name explains the intent, the `if` reads at a glance, and the predicate can be
+  reused or tested. For reusable domain rules, promote it to a named function.
+---
+id: extract-helper-functions
+language: typescript
+title: "Extract repeated or complex logic into named helpers"
+why: "Duplicated or intricate inline logic is hard to follow and drifts out of sync when copied; a named helper gives it one definition and one place to fix. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When the same computation appears more than once, or a block is intricate enough to
+  need a mental pause, pull it into a named function. One definition means one place to
+  fix bugs and a name that documents what the block does. Balance against over-abstraction:
+  extract on the second real repetition, not on speculation.
+---
+id: consistent-return-types
+language: typescript
+title: "Return a consistent type from a function"
+why: "A function that sometimes returns a value, sometimes `undefined`, and sometimes throws is hard to consume; settling on one shape (or a typed union/result) makes call sites simpler. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Make a function's return shape consistent across all paths. Mixing
+  `return value` / `return null` / `return undefined` / falling off the end forces
+  every caller to handle several cases. Decide on one contract — always `T`, a
+  `T | null`, or a `Result<T, E>` — and let the return type state it.
+---
+id: handle-promise-rejections
+language: typescript
+title: "Handle or propagate every promise rejection"
+why: "An unhandled rejection crashes Node (and is silent in some browsers); every async path needs an `await` in a `try`/`catch`, a `.catch`, or a deliberate propagation. A correctness judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Make sure every promise's rejection is handled or intentionally propagated: `await`
+  inside `try`/`catch`, attach `.catch`, or return the promise so a caller handles it.
+  A fire-and-forget `doAsync()` with no handler becomes an unhandled rejection — a Node
+  crash and a silent failure elsewhere. Mark genuine fire-and-forget with `void` and a
+  `.catch` for logging.
+---
+id: prefer-finally-cleanup
+language: typescript
+title: "Release resources in a `finally` block"
+why: "Cleanup that runs only on the success path leaks resources when the body throws; a `finally` (or a disposable/`using`) guarantees it runs either way. A correctness judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Put resource cleanup — closing handles, clearing timers, releasing locks — in a
+  `finally` block (or use `await using` with `Symbol.asyncDispose`) so it runs whether the
+  body succeeds or throws. Cleanup placed only after the work silently leaks on any early
+  return or exception.
+---
+id: avoid-throw-in-finally
+language: typescript
+title: "Don't `throw` or `return` from a `finally` block"
+why: "A `throw`/`return` in `finally` overrides any exception or return from the `try`/`catch`, silently swallowing the original outcome. A correctness rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Never `return` or `throw` from a `finally` block. It supersedes whatever the `try` or
+  `catch` was about to return or throw, so the real result — including a real error —
+  vanishes without a trace. Keep `finally` to side-effect-free cleanup; let the `try`/
+  `catch` decide the outcome.
+---
+id: fail-fast-on-invalid-input
+language: typescript
+title: "Validate inputs and fail fast"
+why: "Checking preconditions at the top of a function and throwing immediately surfaces bad input where it enters, instead of letting it corrupt state and fail confusingly later. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Validate arguments and preconditions at the start of a function and throw (or return an
+  error) immediately on violation. Failing fast at the boundary gives a clear, local error
+  instead of a corrupted value that blows up three layers deeper. Pair with guard clauses
+  so the happy path follows the checks.
+---
+id: prefer-dependency-injection
+language: typescript
+title: "Inject dependencies instead of hard-coding them"
+why: "A function that reaches out to construct its own database client, clock, or HTTP layer is hard to test and rigid; receiving those as parameters makes it swappable and mockable. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Pass collaborators in — a repository, a `fetch` impl, a clock — rather than newing them
+  up or importing a singleton inside the function. Injected dependencies let tests
+  substitute fakes, make coupling explicit in the signature, and let one implementation
+  serve many contexts. A small factory or constructor parameter is usually enough; you
+  rarely need a DI framework.
+---
+id: prefer-async-iteration
+language: typescript
+title: "Consume async sequences with `for await...of`"
+why: "`for await (const x of stream)` reads a sequence of async values with normal control flow; manual recursion over `.next()` or chained `.then`s is harder to follow. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Iterate async iterables and streams with `for await (const chunk of source)` instead of
+  hand-rolling `.next()` loops or recursive `.then` chains. It backpressures naturally and
+  reads like a normal loop. Define producers as `async function*` generators so consumers
+  get this for free.
+---
+id: avoid-sync-io-in-async
+language: typescript
+title: "Avoid synchronous I/O on the hot path"
+why: "Blocking calls like `fs.readFileSync` or `execSync` stall the event loop, freezing every other request/timer in the process. The async variants keep it responsive. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  In server and UI code, avoid synchronous I/O — `fs.readFileSync`, `execSync`,
+  long synchronous loops — on the request/render path. They block the single event loop,
+  so nothing else makes progress until they finish. Use the `fs/promises` async APIs and
+  yield to the loop. Sync I/O is fine in CLI startup or build scripts where nothing else runs.
+---
+id: externalize-configuration
+language: typescript
+title: "Externalize configuration and secrets"
+why: "Hard-coded URLs, credentials, and tunables couple code to one environment and risk leaking secrets into version control; reading them from config/env keeps them out of source. A practice judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Keep environment-specific values — endpoints, credentials, feature toggles, limits —
+  out of the source and read them from configuration or environment variables, validated
+  once at startup. Never commit secrets. Centralizing config makes the app portable across
+  environments and keeps sensitive values out of git history.
+---
+id: avoid-premature-optimization
+language: typescript
+title: "Prefer clarity first; optimize with evidence"
+why: "Micro-optimizing before measuring trades readability for guessed-at gains that often don't matter; clear code plus profiling targets the real hot spots. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write the clear version first, then optimize the parts a profiler proves are hot.
+  Hand-tuning loops, caching speculatively, or contorting code for imagined performance
+  usually costs readability for no measurable win — and hides the genuine bottleneck
+  (often I/O, not CPU). Make it correct and clear, measure, then optimize with data.
+---
+id: colocate-related-code
+language: typescript
+title: "Keep related code close together"
+why: "Code that changes together should live together; scattering a feature across distant files by technical layer makes it hard to find and easy to break. An organization judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Organize by feature/domain so the pieces that change together — component, its types,
+  its tests, its helpers — sit in one place, rather than splitting everything by technical
+  layer across the tree. Colocation shortens the path from 'I need to change X' to every
+  file involved, and keeps modules cohesive.
+---
+id: prefer-readable-over-clever
+language: typescript
+title: "Prefer readable code over clever one-liners"
+why: "A dense expression that takes minutes to decode costs every future reader; a slightly longer, obvious version is cheaper over the code's life. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Optimize for the reader. A clever chained reduce, a nested ternary, or a bit-twiddling
+  trick that 'saves a line' usually costs far more in comprehension than it saves. Choose
+  the version a teammate understands at a glance — name intermediate steps, prefer obvious
+  constructs — unless a measured hot path genuinely requires the dense form (then comment it).
+---
+id: avoid-deep-property-chains
+language: typescript
+title: "Avoid reaching through long property chains"
+why: "Code that digs `a.b.c.d.method()` is tightly coupled to a distant object's shape and breaks when any link changes; asking the immediate collaborator for what you need is more robust (Law of Demeter). A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Avoid threading through long chains like `order.customer.address.city.toUpperCase()`.
+  Each link couples you to a structure you don't own, so a change anywhere along it breaks
+  you. Have the immediate object expose what you need (`order.shippingCity()`), or
+  destructure the needed piece once at a boundary. Optional-chaining a deep path hides the
+  same coupling.
+---
+id: prefer-descriptive-names
+language: typescript
+title: "Use descriptive names over abbreviations"
+why: "Names like `usr`, `calcTtl`, or `d` force readers to decode intent; full words (`user`, `calculateTotal`, `delay`) read directly. The conventional short names (`i`, `id`) are fine. A naming judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Name things for what they are, spelled out: `elapsedMs`, `pendingOrders`,
+  `calculateInvoiceTotal` — not `e`, `po`, or `calcInvTot`. Code is read far more than
+  written, and editors autocomplete long names anyway. The established short ones — `i`/`j`
+  for indices, `id`, `url`, a one-letter arg in a tiny arrow — stay; everything carrying
+  meaning gets a real word.
+---
+id: prefer-consistent-async-style
+language: typescript
+title: "Don't mix callbacks and promises for the same flow"
+why: "Interleaving Node-style callbacks, raw promises, and `async`/`await` in one path is confusing and error-prone; settling on promises/`await` end to end is clearer. A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Pick one async style per flow — almost always promises with `async`/`await` — and stay
+  with it. Wrap legacy callback APIs once at the edge (`util.promisify`, `new Promise`)
+  so the rest of the code is uniform. Mixing callbacks, `.then` chains, and `await` in the
+  same path makes ordering and error handling hard to follow.
+---
+id: prefer-immutable-data-by-default
+language: typescript
+title: "Default to immutable data, mutate deliberately"
+why: "Treating values as immutable by default removes a whole class of aliasing bugs; mutation becomes a conscious, localized choice rather than the ambient default. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Lean toward immutable data: `const`, `readonly` fields and arrays, and returning new
+  values from transforms. Confining mutation to small, local, clearly-marked spots makes
+  it far easier to reason about who can change what. Reach for in-place mutation as a
+  deliberate, profiled optimization on freshly-created, unshared data — not as the default.
+---
 id: prefer-const-over-let
 language: typescript
 title: "Default to `const`; use `let` only when you reassign"

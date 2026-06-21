@@ -1,6 +1,6 @@
 name: python-core
 language: python
-version: 0.1.0
+version: 0.2.0
 ---
 id: compare-none
 language: python
@@ -507,3 +507,1110 @@ skill_prose: |
   the return type; reach for `typing`/`collections.abc` (`Sequence`, `Mapping`,
   `Optional`, `Iterable`) for containers. Local throwaway scripts can stay loose, but
   anything reused or shared benefits from explicit types.
+---
+id: compare-not-none
+language: python
+title: "Use `is not None` instead of `!= None`"
+why: "None is a singleton; identity comparison is correct, faster, and idiomatic. This is the `!=` companion to `compare-none`."
+severity: warn
+fix_policy: autofix
+rule:
+  all:
+    - pattern: "$X != None"
+    # Guard: do not match inside a chained comparison like `a != None != b`,
+    # which ast-grep would corrupt by dropping the trailing operand.
+    - not:
+        pattern: "$A != None != $B"
+fix: "$X is not None"
+skill_prose: |
+  Compare with `is not None`, never `!= None`. `None` is a singleton, so identity is
+  what you mean, and `!=` can be overridden by `__ne__`.
+examples:
+  bad: "if x != None:\n    pass"
+  good: "if x is not None:\n    pass"
+---
+id: range-start-zero
+language: python
+title: "Drop the redundant `0` start in `range(0, n)`"
+why: "`range` already starts at 0, so `range(0, n)` and `range(n)` are identical; the explicit `0` is noise."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "range(0, $N)"
+fix: "range($N)"
+skill_prose: |
+  Write `range(n)` rather than `range(0, n)` — the start defaults to 0. (Keep the
+  explicit start when it's non-zero, like `range(1, n)`, or when a step is present.)
+examples:
+  bad: "for i in range(0, n):\n    pass"
+  good: "for i in range(n):\n    pass"
+---
+id: in-dict-keys
+language: python
+title: "Test membership against a dict directly, not `.keys()`"
+why: "`key in d` already checks the dict's keys, so `key in d.keys()` builds a needless keys view. They're exactly equivalent for membership."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "$K in $D.keys()"
+fix: "$K in $D"
+skill_prose: |
+  Check key membership with `key in d`, not `key in d.keys()`. Membership on a dict
+  tests its keys, so `.keys()` only adds an intermediate view object.
+examples:
+  bad: "if k in d.keys():\n    pass"
+  good: "if k in d:\n    pass"
+---
+id: len-nonzero
+language: python
+title: "Use truthiness instead of `len(x) != 0`"
+why: "Non-empty containers are truthy, so `if x:` is the idiom for non-emptiness; `len(x) != 0` / `len(x) > 0` is more to read and computes a length you don't need. The rewrite isn't always behavior-identical (numpy, len-less iterables), so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "len($X) != 0"
+    - pattern: "len($X) > 0"
+    - pattern: "0 != len($X)"
+skill_prose: |
+  Test a container for non-emptiness with its truthiness — `if items:` — rather than
+  `len(items) != 0` or `len(items) > 0`. Non-empty sequences and mappings are truthy.
+  (Stick with explicit `len(...)` when the object overrides truthiness surprisingly,
+  e.g. numpy arrays.)
+examples:
+  bad: "if len(items) != 0:\n    pass"
+  good: "if items:\n    pass"
+---
+id: redundant-get-none
+language: python
+title: "Drop the redundant `None` default in `dict.get`"
+why: "`dict.get(key)` already returns `None` when the key is missing, so `dict.get(key, None)` is redundant. Taught rather than autofixed because `.get` on a non-dict object could define a different default."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$D.get($K, None)"
+skill_prose: |
+  Write `d.get(key)` instead of `d.get(key, None)` — the default is already `None`.
+  (Keep an explicit default when it's a real value, like `d.get(key, 0)`.)
+examples:
+  bad: "value = cfg.get(key, None)"
+  good: "value = cfg.get(key)"
+---
+id: dangerous-eval-exec
+language: python
+title: "Avoid `eval`/`exec` on dynamic input"
+why: "`eval`/`exec` run arbitrary code from a string — a remote-code-execution risk the moment any part is influenced by input — and defeat tooling. There is no mechanical replacement; the data flow must be redesigned."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "eval($$$ARGS)"
+    - pattern: "exec($$$ARGS)"
+skill_prose: |
+  Don't use `eval`/`exec`. Executing a string as code is an injection hazard whenever
+  any part of it comes from input, and it blocks static analysis. Parse data with
+  `ast.literal_eval`, `json.loads`, or `int()`/`float()`; dispatch on a `dict` of
+  callables; or restructure so no dynamic code is needed.
+examples:
+  bad: "result = eval(user_input)"
+  good: "result = ast.literal_eval(user_input)"
+---
+id: boolean-return-direct
+language: python
+title: "Return the condition directly instead of `if cond: return True`"
+why: "`if cond:\\n    return True\\nreturn False` is a verbose way to write `return bool(cond)`; returning the boolean expression is clearer. Whether the value is already a bool is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function's body is `if cond: return True` followed by `return False`, just
+  `return cond` (or `return bool(cond)` if `cond` isn't already a boolean). The same
+  applies to assigning a flag: `flag = bool(cond)` rather than an `if`/`else` that sets
+  `True`/`False`.
+---
+id: prefer-any-builtin
+language: python
+title: "Use `any()` instead of a loop that sets a found flag"
+why: "`any(pred(x) for x in xs)` expresses 'does anything match?' in one short-circuiting expression; a loop with a `found = True; break` flag is more code for the same thing. Not every such loop should collapse, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Replace a 'set a flag in a loop' existence check with `any(...)`:
+  `if any(item.active for item in items):` instead of looping with
+  `found = False ... found = True; break`. `any` short-circuits on the first match and
+  reads as the question it answers. Use a generator expression so it stays lazy.
+---
+id: prefer-all-builtin
+language: python
+title: "Use `all()` to check every element satisfies a condition"
+why: "`all(pred(x) for x in xs)` says 'do all match?' in one short-circuiting expression; a loop that returns `False` on the first failure is more verbose. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Express 'every element satisfies P' with `all(pred(x) for x in xs)` rather than a
+  loop that returns/sets `False` on the first counterexample. Like `any`, it
+  short-circuits and reads declaratively. (Recall `all([])` is `True` and `any([])` is
+  `False` — usually what you want, but worth a thought on empty input.)
+---
+id: prefer-sum-builtin
+language: python
+title: "Use `sum()` instead of an accumulation loop"
+why: "`sum(values)` (or `sum(f(x) for x in xs)`) replaces a `total = 0; for ...: total += x` loop with one expression. Not every accumulation fits, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Add up a sequence with `sum(values)` or `sum(x.amount for x in items)` instead of an
+  explicit `total = 0` loop. It's one expression and signals intent. Pass a start value
+  for non-zero/typed accumulators (`sum(amounts, Decimal(0))`). For products or other
+  reductions, reach for `math.prod` or `functools.reduce`.
+---
+id: prefer-min-max-builtin
+language: python
+title: "Use `min`/`max` (with `key=`) instead of a tracking loop"
+why: "`max(items, key=score)` finds the extreme in one call; a loop that tracks the best-so-far is more code and easy to get wrong on the first/empty element. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Find an extreme with `min`/`max` and a `key` function — `max(users, key=lambda u:
+  u.score)` — rather than a manual `best = None ...` loop. Pass `default=` to handle an
+  empty iterable without a `ValueError`. Use the bare form (`max(values)`) for plain
+  comparisons.
+---
+id: prefer-walrus-operator
+language: python
+title: "Use the walrus operator to avoid recomputing or pre-assigning"
+why: "`if (n := len(data)) > 10:` binds and tests in one place, avoiding a separate assignment line or a recomputation. Where it improves clarity is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Use `:=` to capture a value where you test or use it — `while (chunk := f.read(8192)):`,
+  `if (m := pattern.match(s)) is not None:` — instead of assigning on a prior line or
+  calling twice. Keep it for cases that genuinely read clearer; don't cram complex
+  assignments into conditions where a plain statement is plainer.
+---
+id: prefer-match-statement
+language: python
+title: "Use `match` for structural / multi-way dispatch"
+why: "`match` (3.10+) destructures and dispatches on shape in a way a long `if`/`elif` chain or nested `isinstance` checks can't express cleanly. Whether it fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Reach for `match`/`case` when branching on the structure or type of a value —
+  destructuring tuples/dataclasses, handling several node kinds — where it's clearer than
+  a chain of `elif`/`isinstance`. For simple equality dispatch a `dict` lookup is often
+  still better; use `match` for its pattern-binding power.
+---
+id: prefer-conditional-expression
+language: python
+title: "Use a conditional expression for simple either/or assignment"
+why: "`x = a if cond else b` assigns in one line where a four-line `if`/`else` block only sets one variable. Whether it's clearer than the block is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an `if`/`else` exists only to assign one variable to one of two values, use a
+  conditional expression: `label = "on" if active else "off"`. It keeps the assignment in
+  one place. Keep the block form when either branch does more than assign, or when the
+  expression would get long and hard to read.
+---
+id: avoid-global-statement
+language: python
+title: "Avoid mutating module globals with the `global` statement"
+why: "`global` reaches out to rebind module-level state from inside a function, creating hidden coupling and test-order dependence. Passing state or returning values is clearer. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Avoid the `global` statement to mutate module-level variables from within functions.
+  It hides data flow, makes functions non-reentrant, and couples tests through shared
+  state. Pass the value in and return the new one, or encapsulate the state in a class /
+  small object. Module-level constants you only read are fine — it's rebinding that hurts.
+---
+id: prefer-list-literal
+language: python
+title: "Use `[]` instead of `list()`"
+why: "The `[]` literal is the idiomatic empty list and is slightly faster than the `list()` constructor call."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "list()"
+fix: "[]"
+skill_prose: |
+  Create an empty list with the literal `[]` rather than `list()`. It's the common
+  idiom and avoids a function call. (Use `list(iterable)` when you're actually
+  converting something.)
+examples:
+  bad: "items = list()"
+  good: "items = []"
+---
+id: prefer-dict-literal
+language: python
+title: "Use `{}` instead of `dict()`"
+why: "The `{}` literal is the idiomatic empty dict and is slightly faster than the `dict()` constructor call."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "dict()"
+fix: "{}"
+skill_prose: |
+  Create an empty dict with the literal `{}` rather than `dict()`. (Keep `dict(...)`
+  when building from keyword pairs or an iterable of items.)
+examples:
+  bad: "mapping = dict()"
+  good: "mapping = {}"
+---
+id: prefer-set-literal
+language: python
+title: "Use a set literal instead of `set([...])`"
+why: "`{1, 2, 3}` constructs the set directly; `set([1, 2, 3])` builds a throwaway list first. Taught rather than autofixed because the empty case `set([])` can't become `{}` (that's a dict) and a single comprehension argument should become a set comprehension."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "set([$$$ELEMENTS])"
+skill_prose: |
+  Build a non-empty set with a literal — `{1, 2, 3}` — instead of `set([1, 2, 3])`,
+  which allocates a list just to consume it. For the empty set keep `set()` (since `{}`
+  is a dict), and turn `set([x for x in xs])` into a set comprehension `{x for x in xs}`.
+examples:
+  bad: "s = set([1, 2, 3])"
+  good: "s = {1, 2, 3}"
+---
+id: prefer-in-comparison
+language: python
+title: "Use `in` instead of chained `== ... or ==`"
+why: "`x in (a, b, c)` tests membership against several values in one expression; `x == a or x == b or x == c` repeats the subject. The membership form reads better and evaluates `x` once."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X == $A or $X == $B"
+skill_prose: |
+  Collapse `x == a or x == b` into `x in (a, b)`. The membership test names the subject
+  once and extends naturally to more values. (Use a `set` literal `{a, b}` for large,
+  hashable option lists to get O(1) checks.)
+examples:
+  bad: "if x == 1 or x == 2:\n    pass"
+  good: "if x in (1, 2):\n    pass"
+---
+id: prefer-not-in-comparison
+language: python
+title: "Use `not in` instead of chained `!= ... and !=`"
+why: "`x not in (a, b)` tests non-membership in one expression; `x != a and x != b` repeats the subject. The membership form reads better and evaluates `x` once."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X != $A and $X != $B"
+skill_prose: |
+  Collapse `x != a and x != b` into `x not in (a, b)`. It names the subject once and
+  extends to more values. (Use a `set` literal for large hashable option lists.)
+examples:
+  bad: "if x != 1 and x != 2:\n    pass"
+  good: "if x not in (1, 2):\n    pass"
+---
+id: prefer-zip-over-index
+language: python
+title: "Iterate parallel sequences with `zip`"
+why: "`for a, b in zip(xs, ys)` pairs elements directly; indexing both with `for i in range(len(xs)): xs[i], ys[i]` is noisier and error-prone. Whether the sequences align is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Walk several sequences together with `zip`: `for name, score in zip(names, scores):`
+  instead of indexing each by a shared `i`. It stops at the shortest input by default;
+  pass `strict=True` (3.10+) to require equal lengths, or `itertools.zip_longest` to pad.
+---
+id: prefer-str-join
+language: python
+title: "Build strings with `str.join`, not `+=` in a loop"
+why: "`\"\".join(parts)` builds the result in one pass; repeated `s += piece` in a loop creates a new string each iteration (quadratic in total length). A judgment call about loop shape, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Assemble a string from pieces with `\"\".join(parts)` (or `\", \".join(...)`) rather
+  than accumulating with `result += piece` in a loop. `join` makes one pass and one
+  allocation, while repeated concatenation is O(n²) in the total length. Collect the
+  pieces (a list or generator) and join once.
+---
+id: prefer-removeprefix-suffix
+language: python
+title: "Strip fixed prefixes/suffixes with `removeprefix`/`removesuffix`"
+why: "`s.removeprefix(p)` (3.9+) removes a known prefix only if present; the old `s[len(p):]` slice strips blindly and corrupts the string when the prefix is absent. A correctness improvement, taught because the slice may be intentional."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Remove a known prefix or suffix with `s.removeprefix(\"www.\")` / `s.removesuffix(\".txt\")`
+  rather than `s[len(prefix):]` or `s[:-len(suffix)]`. The methods only strip when the
+  affix is actually there, avoiding the classic bug where the slice mangles strings that
+  don't start/end with it. (Don't confuse with `strip`, which removes a *set of characters*.)
+---
+id: prefer-defaultdict
+language: python
+title: "Use `collections.defaultdict` for accumulating into a dict"
+why: "`defaultdict(list)` auto-creates the missing value, removing the `if k not in d: d[k] = []` boilerplate before every append. Where it fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When grouping or accumulating into a dict, use `collections.defaultdict(list)` (or
+  `set`, `int`, ...) so `d[key].append(x)` just works without a presence check. For a
+  read-mostly dict, `d.setdefault(key, []).append(x)` is the inline alternative. Convert
+  back to a plain `dict` at the boundary if a caller shouldn't see the defaulting behavior.
+---
+id: prefer-counter
+language: python
+title: "Count occurrences with `collections.Counter`"
+why: "`Counter(items)` tallies frequencies in one call and offers `.most_common()`; a hand-rolled `counts[x] = counts.get(x, 0) + 1` loop reimplements it. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Tally frequencies with `collections.Counter(items)` instead of a manual count loop or
+  `dict.get(x, 0) + 1`. It gives you `.most_common(n)`, arithmetic between counters, and
+  clear intent. Reach for it whenever you're counting how often things occur.
+---
+id: prefer-setdefault
+language: python
+title: "Use `dict.setdefault` to initialize-and-get in one step"
+why: "`d.setdefault(key, []).append(x)` looks up once and inserts the default if missing; the `if key not in d: d[key] = []` then `d[key].append(x)` pattern hashes twice and is wordier. A judgment call (or use `defaultdict`), so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For occasional grouping into a plain dict, `d.setdefault(key, []).append(x)` inserts the
+  default only when the key is absent and returns the stored value — one lookup, no
+  presence check. When the whole dict accumulates this way, a `defaultdict` is cleaner;
+  `setdefault` shines for a one-off on an otherwise-normal dict.
+---
+id: prefer-dict-merge-operator
+language: python
+title: "Merge dicts with `|` or `{**a, **b}`"
+why: "`a | b` (3.9+) and `{**a, **b}` build a merged dict in one expression; a copy-then-`update` loop is more code. A small style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Combine dicts with the union operator `merged = a | b` (3.9+) or `{**a, **b}` rather
+  than `merged = dict(a); merged.update(b)`. Use `a |= b` to merge in place. Later
+  operands win on key conflicts, same as `update`.
+---
+id: prefer-dict-items
+language: python
+title: "Iterate `dict.items()` when you need keys and values"
+why: "`for key, value in d.items()` yields both at once; iterating keys and re-indexing `d[key]` in the body does a redundant lookup each iteration. Whether you need the value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a loop needs both key and value, iterate `for key, value in d.items():` instead of
+  `for key in d:` followed by `d[key]`. It hands you both and skips the repeated lookup.
+  Use plain `for key in d:` when you only need keys and `d.values()` when you only need values.
+---
+id: prefer-fstring-over-percent
+language: python
+title: "Use f-strings instead of `%`-formatting"
+why: "`f\"{name}\"` keeps each value next to its placeholder; `\"%s\" % name` separates template from data and is easy to get wrong (tuple vs single arg). A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Prefer f-strings over `%`-formatting: `f\"{count} items for {user}\"` instead of
+  `\"%d items for %s\" % (count, user)`. The f-string keeps values inline and avoids the
+  single-value-vs-tuple footgun of `%`. (Logging is the deliberate exception — pass
+  `logger.info(\"%s done\", name)` so the format only runs when the message is emitted.)
+---
+id: prefer-generator-expression
+language: python
+title: "Use a generator expression for large or short-circuited pipelines"
+why: "A generator `(f(x) for x in xs)` streams items lazily instead of materializing a whole list; for big inputs or `any`/`sum`/`next` consumers that's less memory and can stop early. When laziness helps is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Feed `sum`, `any`, `all`, `max`, `min`, and `next` with a generator expression —
+  `sum(x.size for x in files)` — and drop the surrounding `[...]`: it avoids building a
+  throwaway list and can short-circuit. For large or streamed data, prefer generators
+  over list comprehensions; materialize to a list only when you need to index or reuse it.
+---
+id: prefer-itertools
+language: python
+title: "Use `itertools` for common iteration patterns"
+why: "`itertools` provides tested, lazy building blocks — `chain`, `islice`, `groupby`, `pairwise`, `product` — that replace fiddly manual index/loop code. Where they fit is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Reach for `itertools` instead of hand-rolling iteration: `chain(a, b)` to concatenate
+  iterables lazily, `islice` to take/skip without slicing a list, `pairwise(xs)` for
+  adjacent pairs, `groupby` for runs, `product`/`combinations` for nested loops. They're
+  lazy, correct, and communicate intent.
+---
+id: prefer-tuple-unpacking
+language: python
+title: "Unpack tuples/sequences instead of indexing"
+why: "`x, y = point` names the parts; `x = point[0]; y = point[1]` repeats the subject and hides what the indices mean. A small readability judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Destructure with assignment unpacking — `name, age = record`, `first, *rest = items`,
+  `for key, value in pairs:` — rather than pulling elements out by numeric index. It names
+  each part and documents the expected shape. Starred targets capture the remainder.
+---
+id: prefer-sorted-key
+language: python
+title: "Sort with a `key` function, not a comparator or decorate-sort-undecorate"
+why: "`sorted(items, key=attrgetter(\"score\"))` sorts by a derived value cleanly; building `(key, item)` tuples to sort or writing a `cmp` function is more code. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Sort by a derived value with the `key=` parameter — `sorted(users, key=lambda u:
+  u.age)` or `key=operator.attrgetter(\"age\")` — rather than the old decorate-sort-undecorate
+  tuple trick or a `functools.cmp_to_key` comparator. `key` is evaluated once per element
+  and reads as 'sort by this'. Add `reverse=True` for descending.
+---
+id: prefer-reversed
+language: python
+title: "Iterate backwards with `reversed`, not a negative-step slice"
+why: "`reversed(xs)` yields items back-to-front lazily and reads clearly; `xs[::-1]` builds a full reversed copy just to loop over it. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  To iterate in reverse, use `for x in reversed(items):` instead of `for x in items[::-1]:`.
+  `reversed` is lazy and states intent, while the `[::-1]` slice allocates a reversed copy.
+  (Keep the slice when you actually want a new reversed list/string as a value.)
+---
+id: prefer-extend-over-append-loop
+language: python
+title: "Use `list.extend` instead of appending in a loop"
+why: "`dst.extend(src)` adds every item in one call; `for x in src: dst.append(x)` is a loop for the same effect. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Append many items at once with `dst.extend(src)` (or `dst += src`) rather than a
+  `for`-loop of `dst.append(x)`. It's one call and clearer. Use a list comprehension or
+  `extend(f(x) for x in src)` when each item is transformed first.
+---
+id: prefer-set-operations
+language: python
+title: "Use set operations for membership math"
+why: "Intersections, unions, and differences expressed with `&`, `|`, `-` on sets are concise and fast; reimplementing them with loops and membership checks is slower and noisier. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Compute overlaps and differences with set algebra — `common = set(a) & set(b)`,
+  `only_in_a = set(a) - set(b)`, `union = set(a) | set(b)` — instead of looping with `if x
+  in b` checks. It's O(n) with hashing and reads as the set relationship it is. Use
+  `frozenset` for hashable, immutable sets.
+---
+id: bare-raise-exception
+language: python
+title: "Raise a specific exception, not bare `Exception`"
+why: "`raise Exception(...)` forces callers to catch the overly-broad `Exception` (or bare-except), so they can't distinguish your error from any other. A built-in or custom subclass lets them handle it precisely. The right type is a judgment call, so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "raise Exception($$$ARGS)"
+    - pattern: "raise Exception"
+skill_prose: |
+  Raise a specific exception type rather than the base `Exception`. Use a fitting
+  built-in (`ValueError`, `TypeError`, `KeyError`, `RuntimeError`) or define a custom
+  subclass, so callers can `except` exactly your error instead of catching everything.
+examples:
+  bad: "raise Exception(\"invalid config\")"
+  good: "raise ValueError(\"invalid config\")"
+---
+id: raise-notimplemented
+language: python
+title: "Raise `NotImplementedError`, not `NotImplemented`"
+why: "`NotImplemented` is a special singleton for rich-comparison/`__eq__` protocols; raising it gives a confusing `TypeError: exceptions must derive from BaseException`. The intended marker for unfinished methods is `NotImplementedError`."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "raise NotImplemented"
+skill_prose: |
+  To mark an abstract or unfinished method, `raise NotImplementedError`. `NotImplemented`
+  is a different object — the sentinel returned by `__eq__`/`__lt__` to defer to the other
+  operand — and raising it is itself an error. The two names are a classic mix-up.
+examples:
+  bad: "raise NotImplemented"
+  good: "raise NotImplementedError"
+---
+id: raise-from-cause
+language: python
+title: "Chain exceptions with `raise ... from`"
+why: "Inside an `except`, `raise NewError(...) from err` preserves the original traceback as the cause; a bare `raise NewError(...)` hides it (or shows a confusing 'During handling of the above…'). A judgment call about wrapping, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you catch one exception and raise another, chain them: `raise ConfigError(...)
+  from err`. The `from` keeps the original as `__cause__` so the traceback shows the real
+  root. Use `from None` to deliberately suppress the context when the original is noise.
+---
+id: avoid-assert-for-validation
+language: python
+title: "Don't use `assert` for runtime validation"
+why: "`assert` statements are stripped entirely when Python runs with `-O`, so any check or side effect they perform silently disappears in optimized deployments. Validate with explicit checks that raise. A correctness rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Reserve `assert` for internal invariants and tests, never for validating arguments,
+  user input, or permissions — `python -O` removes asserts, so the check vanishes in
+  production. Validate with an explicit `if not ok: raise ValueError(...)`. Never put a
+  side effect (like a mutation) inside an `assert`.
+---
+id: prefer-contextlib-suppress
+language: python
+title: "Use `contextlib.suppress` instead of `try/except: pass`"
+why: "`with suppress(FileNotFoundError):` states 'ignore this specific error' in one line; a `try/except SomeError: pass` block is wordier and tempts an over-broad except. A judgment call (ignoring is itself a smell), so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you genuinely mean to ignore a specific exception, use
+  `with contextlib.suppress(FileNotFoundError): os.remove(path)` rather than
+  `try: ... except FileNotFoundError: pass`. It's shorter and names exactly what's
+  suppressed. (Make sure ignoring really is correct — a silent `pass` often hides a bug.)
+---
+id: narrow-try-blocks
+language: python
+title: "Keep `try` blocks as small as the code that can fail"
+why: "Wrapping a large block in one `try` means the `except` can fire for an unexpected line, masking bugs and catching errors you didn't mean to handle. A structural judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Put only the statement(s) that can raise the handled error inside `try`, and move the
+  rest out. A broad `try` around a whole function lets the `except` swallow failures from
+  unrelated lines, hiding real bugs. Narrow blocks make it clear which operation you're
+  guarding and against what.
+---
+id: prefer-keyword-only-args
+language: python
+title: "Make boolean/optional parameters keyword-only"
+why: "A call like `connect(host, True, False)` is unreadable; declaring those params after `*` forces `connect(host, secure=True, retry=False)` at every call site. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Put flags and optional configuration after a bare `*` so they must be passed by name:
+  `def connect(host, *, secure=True, timeout=30)`. Call sites become self-documenting and
+  you can reorder or add options without breaking positional callers. Keep the one or two
+  obvious required arguments positional.
+---
+id: limit-function-args-py
+language: python
+title: "Replace long parameter lists with a dataclass or options object"
+why: "A function with many positional parameters is hard to call correctly; grouping related arguments into a dataclass or accepting an options object names them at the call site. Where the threshold lies is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function takes more than a handful of parameters — especially several of the
+  same type — bundle the related ones into a small `@dataclass` or accept keyword
+  arguments. `render(RenderOptions(width=80, color=True))` beats five positional values
+  nobody can keep straight. It also lets you add fields without churning every caller.
+---
+id: prefer-small-functions-py
+language: python
+title: "Keep functions small and single-purpose"
+why: "A function that does one thing is easier to name, test, and reuse than a long one mixing concerns. Where to split is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Aim for functions that do one thing at one level of abstraction. When a function grows
+  long or needs comments to separate 'sections', extract those sections into named
+  helpers. Small functions read like prose and are testable in isolation. Don't
+  over-split trivial logic — divide along real seams.
+---
+id: prefer-dataclass
+language: python
+title: "Use `@dataclass` instead of a hand-written data holder"
+why: "`@dataclass` generates `__init__`, `__repr__`, `__eq__`, and more from typed field declarations; writing those by hand is boilerplate that drifts out of sync. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For classes that mainly hold data, use `@dataclass` (or `attrs`/Pydantic for validation)
+  rather than hand-writing `__init__`/`__repr__`/`__eq__`. Declare typed fields and let
+  the decorator generate the plumbing: `@dataclass\nclass Point:\n    x: float\n    y:
+  float`. Add `frozen=True` for immutability and `slots=True` for memory.
+---
+id: prefer-namedtuple-or-dataclass
+language: python
+title: "Give structured records names, not bare tuples/dicts"
+why: "Returning `(name, age, email)` or a loose dict forces callers to remember positions or string keys; a `NamedTuple` or dataclass documents the fields and enables attribute access. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function returns several related values, return a `NamedTuple` or dataclass
+  instead of a positional tuple or untyped dict. `point.x` reads better than `point[0]`
+  and survives field reordering, and the type documents the shape. Reserve bare tuples for
+  truly anonymous, throwaway pairings.
+---
+id: prefer-property-over-getters
+language: python
+title: "Expose computed attributes with `@property`, not get/set methods"
+why: "Python has no need for Java-style `get_x()`/`set_x()`; a `@property` lets callers write `obj.x` while you keep control of access. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Start with a plain public attribute, and when you need computation or validation on
+  access, promote it to a `@property` (and a `@x.setter`) — callers keep writing `obj.x`.
+  Don't write `get_value()`/`set_value()` accessor pairs; they're un-Pythonic and add
+  ceremony the property syntax removes.
+---
+id: prefer-enum
+language: python
+title: "Model fixed sets of constants with `enum.Enum`"
+why: "An `Enum` gives related constants a type, readable `repr`, and iteration; loose module-level string/int constants have none of that and allow invalid values. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Group related constants into an `enum.Enum` (or `IntEnum`/`StrEnum`/`Flag`) instead of
+  scattering `STATUS_PENDING = \"pending\"` module constants. Enums are a real type (so a
+  parameter can be annotated `: Status`), are iterable, and print readably. Reach for
+  `StrEnum` when the values must also behave as plain strings.
+---
+id: prefer-slots
+language: python
+title: "Add `__slots__` (or `slots=True`) to high-volume classes"
+why: "`__slots__` removes the per-instance `__dict__`, cutting memory and speeding attribute access for classes instantiated in bulk. Whether it's worth the lost flexibility is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For small classes you create in large numbers, declare `__slots__` (or `@dataclass(slots=
+  True)`) to drop the per-instance `__dict__` — less memory, faster attribute access, and
+  it catches typo'd attribute assignments. Skip it when you need dynamic attributes,
+  multiple inheritance flexibility, or it's just a handful of instances.
+---
+id: avoid-stateless-class
+language: python
+title: "Prefer functions/modules over stateless classes"
+why: "A class with no state whose methods are all `@staticmethod` is just a namespace; plain module-level functions are simpler and more Pythonic. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  If a class holds no instance state and exists only to group functions (all
+  `@staticmethod`), make them module-level functions instead — the module *is* the
+  namespace. Classes earn their keep when they bundle state with behavior or need
+  polymorphism. Don't reach for one as a Java-style utility holder.
+---
+id: prefer-super-no-args
+language: python
+title: "Call `super()` without arguments"
+why: "Since Python 3, `super()` infers the class and instance, so `super().__init__()` is the idiom; the explicit `super(ClassName, self)` form is redundant and breaks if the class is renamed. A small style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write `super().__init__(...)` — the zero-argument form (Python 3) figures out the class
+  and instance automatically. The old `super(MyClass, self).__init__(...)` is verbose and
+  silently wrong if you rename or copy the class. Only spell out the arguments in the rare
+  cases you deliberately skip a level in the MRO.
+---
+id: avoid-mutable-class-attributes
+language: python
+title: "Don't use a mutable class attribute as instance default"
+why: "A list/dict declared at class level is shared by every instance, so one instance's mutation leaks to all — the class-level cousin of the mutable-default-argument bug. Initialize per-instance state in `__init__`. A correctness rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Don't declare `items = []` (or `{}`) at class body level intending per-instance state —
+  all instances share that one object, so appending in one shows up in every other.
+  Initialize mutable instance state in `__init__` (`self.items = []`), or use a
+  `@dataclass` field with `field(default_factory=list)`. Reserve class attributes for
+  genuinely shared constants.
+---
+id: prefer-builtin-generics
+language: python
+title: "Use built-in generics (`list[int]`) over `typing.List`"
+why: "Since 3.9 the built-in containers are subscriptable for typing, so `list[int]`/`dict[str, int]` are the idiom; the capitalized `typing.List`/`Dict` aliases are legacy. A style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Annotate with the lowercase built-ins — `list[int]`, `dict[str, User]`, `tuple[int,
+  ...]`, `set[str]` — rather than `typing.List`/`Dict`/`Tuple` (deprecated aliases since
+  3.9). Pull abstract collection types from `collections.abc` (`Sequence`, `Mapping`,
+  `Iterable`) when you want to accept any conforming type.
+---
+id: prefer-union-pipe
+language: python
+title: "Write optional/union types with `|`"
+why: "`X | None` and `int | str` (3.10+) are the current syntax for unions; `Optional[X]` and `Union[int, str]` are the older, wordier forms. A style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Spell unions with `|`: `str | None` instead of `Optional[str]`, `int | str` instead of
+  `Union[int, str]` (Python 3.10+, or under `from __future__ import annotations`). It's
+  less to import and reads naturally. Prefer `X | None` over a bare `Optional` so the
+  nullability is explicit.
+---
+id: prefer-protocol
+language: python
+title: "Use `Protocol` for structural ('duck') typing"
+why: "A `typing.Protocol` lets you type 'anything with these methods' without forcing callers to inherit a base class, matching Python's duck-typing nature. Where it fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  To type an interface by shape rather than inheritance, define a `Protocol`:
+  `class Reader(Protocol):\n    def read(self, n: int) -> bytes: ...`. Any object with a
+  matching `read` satisfies it — no explicit subclassing — which fits duck typing and
+  decouples callers from your class hierarchy. Use ABCs when you want enforced inheritance.
+---
+id: prefer-final-constants
+language: python
+title: "Mark true constants with `typing.Final`"
+why: "Annotating a module constant `Final` tells type checkers it must not be reassigned, catching accidental mutation and documenting intent. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Annotate genuine constants with `Final`: `MAX_RETRIES: Final = 3`. Type checkers then
+  flag any reassignment, and readers know the value is fixed. Combine with `Final` in
+  class bodies for constants that subclasses must not override. (It's a checker hint, not
+  runtime enforcement.)
+---
+id: annotate-none-return
+language: python
+title: "Annotate `-> None` on functions that return nothing"
+why: "An explicit `-> None` documents that a function is called for its side effect and lets type checkers flag accidental use of its (None) result. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give procedures an explicit `-> None` return annotation — `def save(self) -> None:` —
+  so the contract is clear and a checker complains if a caller tries to use the return
+  value. An unannotated function is treated as untyped, not as returning `None`, so the
+  annotation also opts the body into checking.
+---
+id: prefer-pure-functions-py
+language: python
+title: "Prefer pure functions for core logic"
+why: "A function whose result depends only on its arguments — no I/O, no mutation of outside state — is easy to test, cache, and reason about. Where purity is achievable is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Keep core logic in pure functions (same inputs → same output, no side effects) and push
+  I/O and mutation to thin edges. Pure functions test without fixtures or mocks, memoize
+  with `functools.lru_cache`, and compose cleanly. You can't avoid effects entirely;
+  isolate them so the heart of the program stays pure.
+---
+id: prefer-explicit-bool-conversion
+language: python
+title: "Convert to `bool` explicitly when a bool is required"
+why: "When an API or return type demands an actual `bool`, `bool(x)` states the coercion; relying on a truthy non-bool value where `True`/`False` is expected can leak the wrong type. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  In a plain `if`, truthiness is enough — `if items:`. But when you must *return* or
+  *store* a real boolean (a `-> bool` function, a serialized flag), coerce explicitly with
+  `bool(x)` rather than returning the underlying list/int/None. It keeps the declared type
+  honest and avoids surprising callers with a non-bool 'boolean'.
+---
+id: compare-empty-collection
+language: python
+title: "Use truthiness instead of comparing to an empty collection"
+why: "Empty containers are falsy, so `if not x:` is the idiom; `x == []` / `x == {}` / `x == ()` builds an empty literal to compare against and is more to read. The rewrite isn't always behavior-identical (e.g. distinguishing `[]` from `None`), so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$X == []"
+    - pattern: "$X == {}"
+    - pattern: "$X == ()"
+    - pattern: "$X != []"
+    - pattern: "$X != {}"
+    - pattern: "$X != ()"
+skill_prose: |
+  Test for emptiness with truthiness — `if not items:` (or `if items:` for the `!=`
+  form) — rather than `items == []` / `!= {}` / `== ()`. Empty sequences, mappings, and
+  sets are falsy. (Keep the explicit comparison only when you must distinguish an empty
+  container from `None` or another falsy value, where `if not x:` would conflate them.)
+examples:
+  bad: "if items == []:\n    pass"
+  good: "if not items:\n    pass"
+---
+id: no-double-negation
+language: python
+title: "Use `bool(x)` instead of `not not x`"
+why: "`not not x` is a roundabout way to coerce to a boolean; `bool(x)` says it directly and is exactly equivalent."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "not not $X"
+fix: "bool($X)"
+skill_prose: |
+  Coerce to a boolean with `bool(x)`, not the `not not x` double-negation trick. And in
+  a plain `if`/`while`, you usually don't need either — bare `if x:` already tests truthiness.
+examples:
+  bad: "flag = not not value"
+  good: "flag = bool(value)"
+---
+id: prefer-pathlib
+language: python
+title: "Use `pathlib.Path` instead of `os.path`"
+why: "`pathlib` models paths as objects with readable operators and methods (`/`, `.name`, `.exists()`), replacing nested `os.path.join`/`os.path.basename` calls on strings. A modernization judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Manipulate filesystem paths with `pathlib.Path` rather than `os.path` string functions.
+  `Path(base) / \"sub\" / name` replaces `os.path.join(base, \"sub\", name)`, and you get
+  `.name`, `.suffix`, `.parent`, `.exists()`, `.glob()` as methods. It's clearer and
+  cross-platform. (The `os.path` functions still accept `Path` objects at boundaries.)
+---
+id: prefer-pathlib-io
+language: python
+title: "Read/write whole files with `Path.read_text`/`write_text`"
+why: "`Path(p).read_text(encoding=\"utf-8\")` reads an entire file in one expression; an explicit `with open(...) as f: f.read()` is more ceremony for the common whole-file case. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For whole-file reads/writes, use `Path(p).read_text(encoding=\"utf-8\")`,
+  `write_text`, `read_bytes`, and `write_bytes` instead of an explicit `open`/`read`
+  block. They handle opening and closing for you. Keep an explicit `with open(...)` when
+  you stream line by line or need a file object across several operations.
+---
+id: prefer-explicit-encoding
+language: python
+title: "Pass an explicit `encoding=` when opening text files"
+why: "Without `encoding=`, `open` uses a platform-dependent default (often not UTF-8 on Windows), so the same code reads different bytes on different machines. A portability rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Always pass `encoding=` when opening a file in text mode: `open(path, encoding=\"utf-8\")`
+  / `Path(path).read_text(encoding=\"utf-8\")`. The default locale encoding varies by OS,
+  so omitting it makes behavior machine-dependent and produces mojibake or `UnicodeDecodeError`
+  in the wrong environment. Use binary mode (`\"rb\"`) when you don't want decoding at all.
+---
+id: prefer-os-environ-get
+language: python
+title: "Read environment variables with a validated default"
+why: "`os.environ[\"X\"]` raises `KeyError` for a missing variable; `os.environ.get(\"X\", default)` (or explicit validation) handles absence deliberately. How to handle a missing var is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Read configuration from the environment with `os.environ.get(\"PORT\", \"8080\")` (or
+  `os.getenv`) so a missing variable has a defined default, and coerce/validate the value
+  (`int(...)`, a schema) once at startup. Use `os.environ[\"X\"]` only when the variable is
+  genuinely required and you want a loud failure. Never hard-code secrets — read them here.
+---
+id: prefer-subprocess-run
+language: python
+title: "Run external commands with `subprocess.run`, not `os.system`"
+why: "`subprocess.run([...], check=True)` takes an argument list (no shell injection), captures output, and reports failures; `os.system` runs a shell string and only returns an exit code. A safety/clarity rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Invoke external programs with `subprocess.run([\"git\", \"status\"], check=True,
+  capture_output=True, text=True)` rather than `os.system(\"git status\")`. Passing an
+  argument *list* avoids shell-injection and quoting bugs, `check=True` raises on failure,
+  and you can capture stdout/stderr. Avoid `shell=True` with interpolated input.
+---
+id: prefer-secrets-for-tokens
+language: python
+title: "Generate tokens with `secrets`, not `random`"
+why: "`random` is a deterministic PRNG seeded from predictable state, so it's unsafe for passwords, tokens, or keys; `secrets` is cryptographically secure. A security rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Use the `secrets` module for anything security-sensitive — `secrets.token_urlsafe(32)`,
+  `secrets.choice(...)`, `secrets.token_hex()`. The `random` module is a fast deterministic
+  PRNG meant for simulations and is predictable enough to break security. Keep `random`
+  for non-security randomness like sampling and shuffling test data.
+---
+id: prefer-timezone-aware-datetime
+language: python
+title: "Work with timezone-aware datetimes"
+why: "Naive `datetime.now()` / `utcnow()` carry no timezone, so comparisons and storage silently assume a zone and break across DST and machines. Aware datetimes (`datetime.now(tz=...)`) are unambiguous. A correctness rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Create timezone-aware datetimes: `datetime.now(timezone.utc)` rather than the naive
+  `datetime.now()` or the deprecated `datetime.utcnow()`. Store and compute in UTC and
+  convert to local only for display. Naive datetimes lead to off-by-hours bugs and
+  ambiguous comparisons; an aware datetime states the zone explicitly.
+---
+id: prefer-module-logger
+language: python
+title: "Use a module-level `logging.getLogger(__name__)`"
+why: "Getting a logger named for the module (`logger = logging.getLogger(__name__)`) lets output be filtered and configured per package; calling the root `logging.info(...)` or `print` gives no such control. A practice rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Define `logger = logging.getLogger(__name__)` once at module top and log through it.
+  The `__name__`-based name slots into the logging hierarchy so handlers and levels can be
+  configured per package, and records carry the source module. Don't call `logging.info`
+  on the root logger directly, and configure handlers/levels in one place at app startup
+  (libraries should add a `NullHandler` and not configure).
+---
+id: prefer-tempfile
+language: python
+title: "Create temporary files/dirs with `tempfile`"
+why: "`tempfile.NamedTemporaryFile`/`TemporaryDirectory` create securely-named temporaries and clean them up; hand-built paths like `/tmp/myfile` collide, leak, and are a security risk. A safety rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Make temporary files and directories with the `tempfile` module —
+  `with tempfile.TemporaryDirectory() as d:` or `NamedTemporaryFile` — rather than
+  constructing `/tmp/...` paths yourself. It picks a collision-free, permission-safe name
+  and removes it on exit. Manual temp paths race, leak, and invite symlink attacks.
+---
+id: prefer-contextmanager-decorator
+language: python
+title: "Write context managers with `@contextlib.contextmanager`"
+why: "For setup/teardown around a block, a generator decorated with `@contextmanager` is far less code than a class with `__enter__`/`__exit__`. Whether the case fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Implement a simple context manager as a generator: decorate a function with
+  `@contextlib.contextmanager`, `yield` the resource between setup and teardown, and put
+  teardown in a `finally`. It's much shorter than a full `__enter__`/`__exit__` class.
+  Reach for the class form when the manager holds substantial state or is reused as a type.
+---
+id: prefer-multiple-context-managers
+language: python
+title: "Combine context managers in one `with` statement"
+why: "`with open(a) as fa, open(b) as fb:` manages both resources without nesting; stacking separate `with` blocks adds indentation for no benefit. A small style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Open several resources in a single `with` — `with open(src) as fin, open(dst, \"w\") as
+  fout:` (or parenthesized across lines in 3.10+) — instead of nesting one `with` inside
+  another. For a dynamic number of managers, use `contextlib.ExitStack`.
+---
+id: prefer-main-guard
+language: python
+title: "Guard script entry points with `if __name__ == \"__main__\"`"
+why: "Code at module top level runs on import, so a script's entry logic must sit under `if __name__ == \"__main__\":` to avoid executing when the module is imported. A structural rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Put a module's run-when-executed logic under `if __name__ == \"__main__\":`, typically
+  calling a `main()` function. Without the guard, that code fires whenever the module is
+  imported (by tests, tooling, or another module), causing surprising side effects. Keep
+  definitions at top level and only the invocation inside the guard.
+---
+id: avoid-shadowing-builtins
+language: python
+title: "Don't shadow built-in names"
+why: "Naming a variable `list`, `dict`, `id`, `type`, `str`, or `input` rebinds the built-in within that scope, so later code that needs the original silently breaks. A naming rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Avoid using built-in names — `list`, `dict`, `set`, `id`, `type`, `str`, `input`,
+  `filter`, `sum` — as variable or parameter names. Shadowing them hides the built-in for
+  the rest of the scope, leading to baffling errors when you later call `list(...)`.
+  Pick a specific name (`items`, `user_id`, `text`) or append an underscore (`type_`).
+---
+id: prefer-absolute-imports
+language: python
+title: "Prefer absolute imports over implicit relative ones"
+why: "Absolute imports (`from mypkg.utils import x`) are unambiguous and work regardless of how a module is run; deep or implicit relative imports are fragile and confusing. A style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Import with absolute paths rooted at your package — `from mypkg.core import load` — so
+  the source is unambiguous and refactors are mechanical. Explicit relative imports
+  (`from .sibling import x`) are fine for tightly-coupled intra-package references; avoid
+  reaching across many `..` levels, which signals a layering problem.
+---
+id: document-with-docstrings
+language: python
+title: "Document modules, classes, and public functions with docstrings"
+why: "A docstring is introspectable at runtime (`help()`, IDEs, doc tools) in a way a comment is not, and it states the contract for callers. Where docs add value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give modules, public classes, and public functions a docstring describing purpose,
+  parameters, return value, and raised exceptions — `\"\"\"Parse a config file and return
+  Settings.\"\"\"`. Unlike comments, docstrings are reachable via `help()`, hovers, and
+  documentation generators. Skip them for obvious private helpers; spend the words on
+  public contracts and anything non-obvious.
+---
+id: comments-explain-why-py
+language: python
+title: "Write comments that explain *why*, not *what*"
+why: "A comment restating the code rots and adds noise; one capturing intent, a workaround's reason, or a non-obvious constraint is durable value. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Comment the *why* — the reason for a workaround, a link to the issue it fixes, an
+  invariant that isn't obvious — not the *what* the code already says. `x += 1  # add one`
+  is noise; `# API pages are 1-based` earns its place. If you're tempted to explain *what*,
+  prefer a clearer name or a small refactor so the code speaks for itself.
+---
+id: avoid-magic-numbers-py
+language: python
+title: "Name magic numbers as constants"
+why: "A bare literal like `86400` buried in an expression hides its meaning; a named `SECONDS_PER_DAY` documents intent and centralizes the value. Which literals deserve names is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give meaningful numeric literals a name: `MAX_RETRIES = 3`, `SECONDS_PER_DAY = 86_400`.
+  The name explains what the number means and gives one place to change it. The obvious
+  ones — `0`, `1`, `-1` — stay inline; promote a number to a constant once it carries
+  domain meaning or repeats.
+---
+id: fail-fast-py
+language: python
+title: "Validate inputs and fail fast"
+why: "Checking preconditions at the top of a function and raising immediately surfaces bad input where it enters, instead of letting it corrupt state and fail confusingly later. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Validate arguments and preconditions at the start of a function and raise immediately on
+  violation (`if amount < 0: raise ValueError(...)`). Failing fast at the boundary gives a
+  clear, local error instead of a corrupted value that explodes layers deeper. Pair with
+  guard clauses so the happy path follows the checks.
+---
+id: prefer-dependency-injection-py
+language: python
+title: "Inject dependencies instead of hard-coding them"
+why: "A function that constructs its own database connection, clock, or HTTP session is hard to test and rigid; receiving those as parameters makes it swappable and mockable. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Pass collaborators in — a repository, a `Session`, a clock function — rather than
+  creating them or importing a global inside the function. Injected dependencies let tests
+  pass fakes, make coupling explicit in the signature, and let one function serve many
+  contexts. A default argument or constructor parameter is usually enough; you rarely need
+  a DI framework.
+---
+id: avoid-premature-optimization-py
+language: python
+title: "Prefer clarity first; optimize with evidence"
+why: "Micro-optimizing before profiling trades readability for guessed-at gains that often don't matter; clear code plus measurement targets the real hot spots. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write the clear version first, then optimize what a profiler (`cProfile`, `timeit`)
+  proves is hot. Speculative caching, manual loop unrolling, or contorting code for
+  imagined speed usually costs readability for no measurable win — and the real cost is
+  often I/O, not CPU. Make it correct and clear, measure, then optimize with data.
+---
+id: validate-at-boundaries-py
+language: python
+title: "Validate and parse external data at the boundary"
+why: "Data from the network, files, env, or user input is untrusted until validated; parsing it into a typed structure at the edge (dataclass, Pydantic, explicit checks) keeps the core honest. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Parse untrusted input into a known type at the system's edge — with Pydantic, a
+  dataclass plus validation, or explicit checks — before it flows inward. 'Parse, don't
+  validate': downstream code then receives a real `Settings`/`User`, not a raw dict it
+  keeps re-checking. Don't pass unverified `json.loads(...)` results deep into the system.
+---
+id: prefer-self-documenting-fstring-debug
+language: python
+title: "Use `f\"{value=}\"` for debug output"
+why: "The f-string `=` specifier prints both the expression and its value (`f\"{count=}\"` → `count=3`), so debug lines stay correct when you rename or change the expression. A small convenience, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For quick debug logging, use the self-documenting f-string form: `print(f\"{user_id=}\")`
+  emits `user_id=42`, keeping label and value in sync automatically (3.8+). It beats
+  `print(\"user_id =\", user_id)` where the label can drift from the expression. (Prefer the
+  `logging` module over `print` for anything that ships — see `print-debugging`.)
+---
+id: keep-comprehensions-simple
+language: python
+title: "Keep comprehensions readable; don't over-nest"
+why: "A comprehension with multiple `for` clauses, nested conditions, and a complex expression becomes denser than the loop it replaces. When to fall back to a loop is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Comprehensions shine for a single map and/or filter. Once you'd stack several `for`
+  clauses, nested ternaries, or a multi-step expression into one, it's harder to read than
+  an explicit loop — so write the loop, or factor the expression into a named helper the
+  comprehension calls. Favor clarity over compressing everything onto one line.
+---
+id: prefer-functools-cache
+language: python
+title: "Memoize pure functions with `functools.cache`/`lru_cache`"
+why: "`@functools.cache` (or `@lru_cache`) gives a pure function automatic memoization; a hand-rolled module-level dict cache reimplements it with more bugs. Whether caching is correct is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Cache results of an expensive *pure* function with `@functools.cache` (unbounded) or
+  `@functools.lru_cache(maxsize=...)` instead of managing your own dict. It handles keys,
+  eviction, and thread safety. Only memoize functions with no side effects and hashable
+  arguments, and watch memory for unbounded caches with many distinct inputs.

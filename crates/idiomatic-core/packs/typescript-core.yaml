@@ -1,6 +1,6 @@
 name: typescript-core
 language: typescript
-version: 0.1.0
+version: 0.2.0
 ---
 id: triple-equals
 language: typescript
@@ -448,3 +448,1272 @@ skill_prose: |
   hard-to-scan line. Unfold it into early returns, an `if`/`else if` chain, or a
   lookup map. A single `cond ? a : b` is fine; once you'd nest a second `?:`, switch
   to statements.
+---
+id: no-object-constructor
+language: typescript
+title: "Use an object literal instead of `new Object()`"
+why: "`new Object()` is verbose and offers nothing over `{}`; the literal is the universal idiom."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "new Object()"
+fix: "{}"
+skill_prose: |
+  Prefer the object literal `{}` over `new Object()`. The constructor is longer and
+  buys nothing. (Only the zero-argument form is autofixed.)
+examples:
+  bad: "const o = new Object();"
+  good: "const o = {};"
+---
+id: no-unneeded-ternary
+language: typescript
+title: "Use `Boolean(x)` instead of `x ? true : false`"
+why: "`cond ? true : false` is a verbose way to coerce to boolean; `Boolean(cond)` says it directly and is exactly equivalent."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "$X ? true : false"
+fix: "Boolean($X)"
+skill_prose: |
+  A ternary whose branches are `true` and `false` is just a boolean coercion —
+  write `Boolean(cond)` instead of `cond ? true : false`. If `cond` is already a
+  boolean you can often drop the wrapper entirely.
+examples:
+  bad: "const b = cond ? true : false;"
+  good: "const b = Boolean(cond);"
+---
+id: no-self-compare
+language: typescript
+title: "Don't compare a value to itself"
+why: "`x === x` is always true (and `x !== x` always false) except for `NaN`; if you mean the NaN check, say `Number.isNaN(x)`. Otherwise it's a bug or dead code."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$X === $X"
+    - pattern: "$X !== $X"
+skill_prose: |
+  Comparing a value to itself with `===`/`!==` is a no-op for everything except
+  `NaN`. If you're checking for `NaN`, use `Number.isNaN(x)` — it states the intent.
+  Otherwise the duplicated operand is almost always a typo for a different variable.
+examples:
+  bad: "if (x === x) {\n  return;\n}"
+  good: "if (Number.isNaN(x)) {\n  return;\n}"
+---
+id: no-nan-equality
+language: typescript
+title: "Use `Number.isNaN(x)` instead of comparing to `NaN`"
+why: "`NaN` is never equal to anything, including itself, so `x === NaN` is always false. Only `Number.isNaN(x)` actually detects it."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$X === NaN"
+    - pattern: "$X !== NaN"
+    - pattern: "NaN === $X"
+    - pattern: "NaN !== $X"
+    - pattern: "$X == NaN"
+    - pattern: "$X != NaN"
+    - pattern: "NaN == $X"
+    - pattern: "NaN != $X"
+skill_prose: |
+  Never compare against `NaN` with `===`/`!==`: by IEEE-754 `NaN` is unequal to
+  everything, so `x === NaN` is permanently false. Detect it with `Number.isNaN(x)`.
+examples:
+  bad: "if (x === NaN) {\n  return;\n}"
+  good: "if (Number.isNaN(x)) {\n  return;\n}"
+---
+id: prefer-array-some
+language: typescript
+title: "Use `.some()` instead of `.filter(...).length > 0`"
+why: "`arr.some(pred)` answers the existence question directly and short-circuits; `.filter(pred).length > 0` builds a throwaway array and scans the whole input. Taught rather than autofixed because `filter` runs the predicate on every element while `some` stops early, so a side-effecting predicate changes behavior."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$A.filter($F).length > 0"
+    - pattern: "$A.filter($F).length !== 0"
+skill_prose: |
+  To ask whether any element matches, use `arr.some(pred)` rather than
+  `arr.filter(pred).length > 0`. `some` short-circuits on the first hit and allocates
+  nothing. (Mind a predicate with side effects: `filter` calls it on every element,
+  `some` stops at the first match.)
+examples:
+  bad: "const has = items.filter(f).length > 0;"
+  good: "const has = items.some(f);"
+---
+id: prefer-array-find
+language: typescript
+title: "Use `.find()` instead of `.filter(...)[0]`"
+why: "`arr.find(pred)` returns the first match and stops; `arr.filter(pred)[0]` builds the full matching array just to take its head. Taught rather than autofixed because `filter` evaluates the predicate on every element."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A.filter($F)[0]"
+skill_prose: |
+  To get the first matching element, use `arr.find(pred)` instead of
+  `arr.filter(pred)[0]`. `find` short-circuits and returns `undefined` when nothing
+  matches, identical to indexing an empty array — but without building it.
+examples:
+  bad: "const first = items.filter(f)[0];"
+  good: "const first = items.find(f);"
+---
+id: prefer-flatmap
+language: typescript
+title: "Use `.flatMap()` instead of `.map(...).flat()`"
+why: "`arr.flatMap(f)` maps and flattens one level in a single pass; `.map(f).flat()` allocates an intermediate array. They're equivalent for one level of flattening."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A.map($F).flat()"
+skill_prose: |
+  When you map and then flatten one level, use `arr.flatMap(f)` instead of
+  `arr.map(f).flat()`. It's one pass with no intermediate array. (`flatMap` only
+  flattens a single level; keep `.flat(depth)` when you need deeper flattening.)
+examples:
+  bad: "const r = items.map(f).flat();"
+  good: "const r = items.flatMap(f);"
+---
+id: prefer-array-isarray
+language: typescript
+title: "Use `Array.isArray(x)` instead of `x instanceof Array`"
+why: "`instanceof Array` returns false for arrays created in another realm (iframe, worker, vm); `Array.isArray` works across realms and is the canonical check."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X instanceof Array"
+skill_prose: |
+  Detect arrays with `Array.isArray(x)`, not `x instanceof Array`. `instanceof`
+  checks the prototype chain against *this* realm's `Array`, so it misreports arrays
+  passed from an iframe, worker, or `vm` context. `Array.isArray` has no such blind spot.
+examples:
+  bad: "if (x instanceof Array) {\n  return;\n}"
+  good: "if (Array.isArray(x)) {\n  return;\n}"
+---
+id: prefer-spread-over-apply
+language: typescript
+title: "Use spread instead of `fn.apply(null, args)`"
+why: "`fn(...args)` is the modern way to call a function with an array of arguments; `fn.apply(null, args)` is the pre-ES2015 idiom and obscures the call. Taught rather than autofixed because `apply` also rebinds `this`, so the rewrite is only equivalent when the thisArg is `null`/`undefined`."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$F.apply(null, $ARGS)"
+    - pattern: "$F.apply(undefined, $ARGS)"
+skill_prose: |
+  Spread an argument array into a call — `fn(...args)` — instead of
+  `fn.apply(null, args)`. Spread reads as a normal call and composes with other
+  arguments. (When `apply`'s first argument is a real object it's rebinding `this`;
+  use `fn.call`/`Reflect.apply` deliberately there rather than spread.)
+examples:
+  bad: "const r = fn.apply(null, args);"
+  good: "const r = fn(...args);"
+---
+id: prefer-optional-call
+language: typescript
+title: "Use optional chaining for guarded method calls"
+why: "`obj?.run()` is shorter and clearer than `obj && obj.run()`, and avoids the truthiness pitfalls of an `&&` guard."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A && $A.$M($$$ARGS)"
+skill_prose: |
+  Guard a method call with optional chaining — `obj?.run()` — instead of
+  `obj && obj.run()`. It expresses 'call only if present' directly and skips the
+  call (yielding `undefined`) when `obj` is nullish, without treating `0`/`""` as absent.
+examples:
+  bad: "const r = obj && obj.run();"
+  good: "const r = obj?.run();"
+---
+id: prefer-object-spread
+language: typescript
+title: "Use object spread instead of `Object.assign({}, ...)`"
+why: "`{ ...a, ...b }` builds a new merged object as a literal; `Object.assign({}, a, b)` does the same thing with more ceremony. Taught rather than autofixed because `Object.assign` triggers setters on the target whereas spread defines own properties — a difference that matters only in rare cases."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "Object.assign({}, $$$SRC)"
+skill_prose: |
+  Merge into a fresh object with spread — `{ ...a, ...b }` — instead of
+  `Object.assign({}, a, b)`. The literal reads as construction and is the common
+  idiom. (Keep `Object.assign(target, ...)` when you intend to mutate an existing
+  object in place rather than create a new one.)
+examples:
+  bad: "const merged = Object.assign({}, a, b);"
+  good: "const merged = { ...a, ...b };"
+---
+id: prefer-logical-assignment
+language: typescript
+title: "Use logical assignment (`||=`, `??=`, `&&=`)"
+why: "`a ||= b` / `a ??= b` / `a &&= b` say 'assign conditionally' in one operator; `a = a || b` restates the target. Taught rather than autofixed because the compound form short-circuits the assignment (skipping setters) where the expanded form always assigns."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$A = $A || $B"
+    - pattern: "$A = $A ?? $B"
+    - pattern: "$A = $A && $B"
+skill_prose: |
+  Collapse `a = a || b` into `a ||= b`, `a = a ?? b` into `a ??= b`, and
+  `a = a && b` into `a &&= b` (ES2021 logical assignment). Prefer `??=` over `||=`
+  for defaults so a real `0`/`""`/`false` isn't overwritten.
+examples:
+  bad: "x = x || 5;"
+  good: "x ||= 5;"
+---
+id: prefer-destructuring
+language: typescript
+title: "Destructure objects and arrays instead of repeated member access"
+why: "Pulling several fields out with `const { a, b, c } = obj` is shorter and names the bindings once, versus `const a = obj.a; const b = obj.b;`. Whether destructuring improves a given spot is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you read several properties off the same object (or several elements off an
+  array), destructure: `const { id, name, role } = user;` instead of three
+  `user.x` reads. It names the bindings once and signals exactly which fields you
+  depend on. Skip it when you only touch one property or want to keep the receiver visible.
+---
+id: prefer-numeric-separators
+language: typescript
+title: "Use numeric separators in large number literals"
+why: "`1_000_000` is far easier to read at a glance than `1000000`; the underscores are ignored by the parser. A readability judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Group digits in large numeric literals with `_` separators — `1_000_000`,
+  `0xFF_EC_DE`, `1_000.50` — so magnitude is readable without counting zeros. The
+  separators are purely cosmetic and don't change the value. Reserve them for
+  numbers big enough that grouping helps.
+---
+id: prefer-object-entries
+language: typescript
+title: "Iterate with `Object.entries` instead of keys-then-index"
+why: "`for (const [k, v] of Object.entries(obj))` yields key and value together; `Object.keys(obj)` followed by `obj[k]` re-indexes on every iteration. Whether you need both is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you need both key and value, iterate `Object.entries(obj)` and destructure
+  `[key, value]`, rather than looping `Object.keys(obj)` and re-reading `obj[key]`.
+  Use `Object.values(obj)` when you only want values and `Object.keys(obj)` when you
+  only want keys.
+---
+id: prefer-set-for-membership
+language: typescript
+title: "Use a `Set` for repeated membership tests"
+why: "Checking `array.includes(x)` inside a loop is O(n) each time, making the whole thing O(n·m); a `Set` lookup is O(1). When and whether to switch is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you test membership against the same collection many times — especially in a
+  loop — build a `Set` once and use `set.has(x)` (O(1)) instead of `array.includes(x)`
+  (O(n)). For a handful of checks against a short array, `includes` is fine and reads
+  more simply.
+---
+id: prefer-map-over-record
+language: typescript
+title: "Use a `Map` instead of a plain object for a dynamic dictionary"
+why: "A plain object as a keyed store inherits prototype keys (`__proto__`, `toString`), only allows string/symbol keys, and has no clean size/iteration API. `Map` avoids all of this. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When keys are dynamic, arbitrary, or non-string, reach for `Map` rather than a
+  plain `{}`. `Map` has any-type keys, ordered iteration, a real `.size`, and no
+  prototype-pollution surprises (`obj["__proto__"]`). Keep plain objects for fixed,
+  known-at-author-time shapes that you'll also type with an interface.
+---
+id: no-for-in-array
+language: typescript
+title: "Don't iterate arrays with `for...in`"
+why: "`for...in` enumerates string keys including inherited and non-index properties, in no guaranteed order — almost never what you want for an array. Use `for...of` or array methods. A judgment call about the right replacement, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Never loop an array with `for (const i in arr)`: it yields *string* keys, walks
+  inherited enumerable properties, and isn't index-ordered by spec. Use
+  `for (const item of arr)` for values, `arr.entries()` when you need the index, or
+  `arr.forEach`. Reserve `for...in` for plain objects (with a `hasOwnProperty` guard).
+---
+id: prefer-not-includes
+language: typescript
+title: "Use `!arr.includes(x)` instead of `.indexOf(x) === -1`"
+why: "`!arr.includes(x)` states the absence test directly; `.indexOf(x) === -1` (or `< 0`) is the pre-ES2015 idiom and is easy to get wrong. Taught rather than autofixed because `includes` and `indexOf` diverge on sparse-array holes and `NaN`, so a blind rewrite isn't guaranteed equivalent."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$A.indexOf($X) === -1"
+    - pattern: "$A.indexOf($X) == -1"
+    - pattern: "$A.indexOf($X) < 0"
+skill_prose: |
+  Test for absence with `!arr.includes(x)` rather than `arr.indexOf(x) === -1` / `< 0`.
+  It reads as the boolean it is and avoids comparing an index. (Taught, not autofixed:
+  `includes` matches `NaN` and treats sparse-array holes as `undefined` where `indexOf`
+  does neither, so rewrite deliberately for arrays that may be sparse or hold `NaN`.)
+examples:
+  bad: "const no = arr.indexOf(x) === -1;"
+  good: "const no = !arr.includes(x);"
+---
+id: prefer-date-now
+language: typescript
+title: "Use `Date.now()` instead of `new Date().getTime()`"
+why: "`Date.now()` returns the current epoch milliseconds directly; `new Date().getTime()` allocates a `Date` object just to read its time. They're exactly equivalent."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "new Date().getTime()"
+fix: "Date.now()"
+skill_prose: |
+  Get the current timestamp with `Date.now()` instead of `new Date().getTime()` (or
+  `+new Date()`). It skips the throwaway `Date` allocation and reads as 'now in ms'.
+examples:
+  bad: "const t = new Date().getTime();"
+  good: "const t = Date.now();"
+---
+id: prefer-object-hasown
+language: typescript
+title: "Use `Object.hasOwn` instead of `Object.prototype.hasOwnProperty.call`"
+why: "`Object.hasOwn(obj, key)` (ES2022) is the purpose-built, readable replacement for the `Object.prototype.hasOwnProperty.call(obj, key)` incantation used to safely check own properties."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "Object.prototype.hasOwnProperty.call($O, $K)"
+fix: "Object.hasOwn($O, $K)"
+skill_prose: |
+  Check for an own property with `Object.hasOwn(obj, key)` instead of the verbose
+  `Object.prototype.hasOwnProperty.call(obj, key)`. Both sidestep a shadowed or
+  null-prototype `hasOwnProperty`, but `Object.hasOwn` says it in one call.
+examples:
+  bad: "const has = Object.prototype.hasOwnProperty.call(obj, key);"
+  good: "const has = Object.hasOwn(obj, key);"
+---
+id: prefer-number-isfinite
+language: typescript
+title: "Use `Number.isFinite` instead of the global `isFinite`"
+why: "The global `isFinite` coerces its argument first, so `isFinite(\"42\")` is `true`. `Number.isFinite` returns true only for actual finite numbers. No safe autofix: the two differ for non-number arguments."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "isFinite($X)"
+skill_prose: |
+  Use `Number.isFinite(x)`, not the global `isFinite(x)`. The global coerces first, so
+  `isFinite("42")` is `true` and `isFinite(null)` is `true` — surprising for a finiteness
+  check. `Number.isFinite` is false for any non-number. Wrap explicitly with
+  `Number.isFinite(Number(x))` if you do want coercion.
+examples:
+  bad: "if (isFinite(n)) {\n  return;\n}"
+  good: "if (Number.isFinite(n)) {\n  return;\n}"
+---
+id: parse-int-radix
+language: typescript
+title: "Always pass a radix to `parseInt`"
+why: "`parseInt(s)` infers the base from the string, so a leading `0x` parses as hex and historically `0`-prefixed strings parsed as octal. Passing `10` makes the base explicit and predictable. No safe autofix: the intended radix is a judgment call."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "parseInt($X)"
+skill_prose: |
+  Always give `parseInt` an explicit radix: `parseInt(s, 10)`. Without it the base is
+  inferred from the string's prefix, which is a footgun for user input. Use `Number(s)`
+  or the unary `+s` when you want a full numeric parse rather than integer truncation.
+examples:
+  bad: "const n = parseInt(s);"
+  good: "const n = parseInt(s, 10);"
+---
+id: no-new-wrappers
+language: typescript
+title: "Don't use `new` with `String`/`Number`/`Boolean`"
+why: "`new String(x)` makes a wrapper *object*, not a primitive, so `typeof` is `\"object\"` and `new Boolean(false)` is truthy. Called without `new`, these are useful conversion functions. No safe autofix: dropping `new` is the fix but intent must be confirmed."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "new String($$$ARGS)"
+    - pattern: "new Number($$$ARGS)"
+    - pattern: "new Boolean($$$ARGS)"
+skill_prose: |
+  Never call `String`/`Number`/`Boolean` with `new`. The constructor form builds a
+  wrapper object — `typeof new String("x") === "object"`, and `new Boolean(false)` is
+  truthy — which breaks equality and type checks. Call them as plain functions for
+  conversion (`String(x)`, `Number(x)`, `Boolean(x)`) or use a literal.
+examples:
+  bad: "const s = new String(x);"
+  good: "const s = String(x);"
+---
+id: prefer-unknown-in-catch
+language: typescript
+title: "Type a caught error as `unknown`, not `any`"
+why: "A `catch` variable can be anything that was thrown, so `unknown` is the honest type and forces a narrowing check before use; `any` silently disables checking on it. A judgment call about how to narrow, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Type a caught error as `unknown` (the default under `useUnknownInCatchVariables`)
+  rather than `any`: `catch (err: unknown)`. Anything can be thrown, so you must
+  narrow before using it — `if (err instanceof Error) ...` — which is exactly the
+  safety `any` would throw away.
+---
+id: prefer-as-const
+language: typescript
+title: "Use `as const` for literal/tuple constants"
+why: "`as const` freezes a value to its narrowest literal type — readonly tuples, literal unions — instead of the widened `string`/`number[]`. Whether you want the narrow type is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Annotate fixed literal data with `as const` — `const ROLES = ["admin", "user"] as const;`
+  — so it infers a readonly tuple of literal types (`readonly ["admin", "user"]`)
+  rather than the widened `string[]`. This powers literal unions
+  (`type Role = typeof ROLES[number]`) and prevents accidental mutation.
+---
+id: prefer-satisfies
+language: typescript
+title: "Use `satisfies` to check a value without widening it"
+why: "`satisfies T` validates that a value conforms to `T` while preserving its specific inferred type; an annotation `: T` validates but widens to `T`, losing literal detail. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Use `satisfies` when you want a value checked against a type but keep its narrow
+  inferred shape: `const config = { port: 8080 } satisfies Config;` lets you both
+  catch typos *and* still see `config.port` as the literal `8080`. Prefer it over a
+  `: Config` annotation, which would widen the properties.
+---
+id: prefer-type-imports
+language: typescript
+title: "Use `import type` for type-only imports"
+why: "`import type { T }` marks an import as erasable, so bundlers and `isolatedModules` builds drop it cleanly and never emit a runtime dependency for something used only in type position. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an import is used only in type positions, write `import type { User } from "./user"`
+  (or `import { type User, makeUser }` for mixed). It guarantees the binding is erased at
+  compile time, avoids accidental runtime imports and circular-dependency cycles, and is
+  required under `verbatimModuleSyntax`/`isolatedModules`.
+---
+id: avoid-type-assertions
+language: typescript
+title: "Prefer narrowing over `as` type assertions"
+why: "`value as T` overrides the checker without proof; if you're wrong the bug surfaces later at runtime. Type guards and narrowing prove the type instead. When an assertion is genuinely needed is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Reach for narrowing — `typeof`/`instanceof` checks, user-defined type guards
+  (`x is T`), discriminant checks — before an `as` assertion. Assertions tell the
+  compiler 'trust me' without evidence, so a wrong one becomes a runtime crash. Keep
+  assertions for the rare cases the checker genuinely can't follow (and never reach
+  for `as any` or double assertions `as unknown as T`).
+---
+id: prefer-readonly-array
+language: typescript
+title: "Use `readonly` arrays/properties for data you don't mutate"
+why: "`readonly T[]` / `ReadonlyArray<T>` and `readonly` fields make immutability part of the type, so accidental mutation is a compile error and intent is documented. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Mark arrays and object fields you don't intend to mutate as `readonly` —
+  `function sum(xs: readonly number[])`, `readonly id: string`. It documents intent and
+  turns accidental `push`/reassignment into a compile error. Use it especially on
+  function parameters to promise you won't mutate the caller's data.
+---
+id: prefer-discriminated-unions
+language: typescript
+title: "Model variants with a discriminated union, not optional fields"
+why: "A discriminated union (`{ kind: \"a\"; ... } | { kind: \"b\"; ... }`) lets the compiler narrow exhaustively and makes illegal states unrepresentable; a flat type with many optional fields allows nonsensical combinations. A modeling judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a type has mutually exclusive shapes, model it as a discriminated union with a
+  literal tag — `type Result = { ok: true; value: V } | { ok: false; error: E }` —
+  instead of one object with a pile of optional fields. The tag lets TypeScript narrow
+  each branch and flags missing cases in a `switch`, so illegal combinations can't compile.
+---
+id: prefer-record-type
+language: typescript
+title: "Type keyed objects with `Record<K, V>`"
+why: "`Record<string, number>` states 'object whose values are numbers' concisely and precisely; an index signature written by hand (`{ [k: string]: number }`) is noisier. A small style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Describe a dictionary-shaped object with `Record<K, V>` — `Record<string, User>`,
+  `Record<Status, Handler>` — rather than spelling out an index signature. With a
+  union key type it also forces you to cover every key. (For truly dynamic keys at
+  runtime, prefer a `Map`; see `prefer-map-over-record`.)
+---
+id: no-empty-interface
+language: typescript
+title: "Don't declare an empty interface"
+why: "`interface Foo {}` accepts any non-nullish value (it has no requirements), which usually signals a placeholder or a misunderstanding. Extend, alias, or remove it. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Avoid `interface Foo {}`. An interface with no members imposes no constraints, so it
+  behaves like `unknown`-ish `{}` and rarely means what the author intended. If you're
+  re-exporting a type, use `type Foo = Bar`; if extending, `interface Foo extends Bar {}`;
+  if it's a placeholder, leave a TODO with a real shape instead.
+---
+id: prefer-explicit-return-types
+language: typescript
+title: "Annotate return types on exported functions"
+why: "An explicit return type documents the contract, keeps inference from silently changing it when the body changes, and produces clearer errors at the definition rather than at distant call sites. Where it adds value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give exported/public functions an explicit return type — `export function load(): Config`
+  — so the contract is stated, an accidental change to the body is caught at the
+  definition, and editor hovers are stable. Local helpers can lean on inference; the
+  payoff is largest at module and API boundaries.
+---
+id: no-else-after-return
+language: typescript
+title: "Drop `else` after a returning `if`"
+why: "When the `if` branch ends in `return`/`throw`, the `else` is redundant and adds a level of nesting; the else-body can dedent to the main flow. A small structural judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an `if` block ends by returning or throwing, drop the `else` and let the rest
+  of the function continue at the outer level: `if (!ok) return; doWork();` instead of
+  `if (!ok) { return; } else { doWork(); }`. It removes a nesting level and reads as a
+  guard clause.
+---
+id: no-lonely-if
+language: typescript
+title: "Use `else if` instead of an `if` nested alone in an `else`"
+why: "An `else` block whose only statement is an `if` should be written `else if`, which flattens the chain and reads as the multi-way branch it is. A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Collapse `else { if (cond) { ... } }` into `else if (cond) { ... }`. The lonely
+  nested `if` adds a brace level and obscures that this is one `if`/`else if`/`else`
+  ladder. (If the chain grows long or branches on one value, consider a `switch` or a
+  lookup map instead.)
+---
+id: prefer-switch-statement
+language: typescript
+title: "Use `switch` (or a map) for long `else if` chains on one value"
+why: "A chain of `else if` all testing the same variable against constants reads better as a `switch` (or a lookup table), which makes the dispatch obvious and lets the compiler check exhaustiveness over a union. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When several `else if`s all compare the same value to constants, switch to a
+  `switch` statement or a lookup object/`Map`. A `switch` over a discriminated union
+  also gives you exhaustiveness checking via a `never` default. Keep the `if` ladder
+  when branches test different expressions or ranges.
+---
+id: no-param-reassign
+language: typescript
+title: "Avoid reassigning function parameters"
+why: "Mutating a parameter detaches it from the value the caller passed, obscures data flow, and breaks `arguments`-mapping in non-strict code. Introducing a local is usually clearer. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Treat parameters as read-only inputs; assign to a clearly-named local instead of
+  reassigning the parameter (`const normalized = raw.trim()` rather than `raw = raw.trim()`).
+  It keeps the original argument visible for debugging and avoids surprising a reader who
+  expects a parameter to mean what was passed. Mutating an object a parameter *points at*
+  is a separate concern (see immutability).
+---
+id: limit-function-params
+language: typescript
+title: "Replace long parameter lists with an options object"
+why: "A function with many positional parameters forces callers to remember order and pass meaningless `undefined`s for skipped options; a single options object names each argument at the call site. Where the threshold lies is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function takes more than ~3 parameters — especially several of the same type
+  or several optional ones — accept a single options object: `createUser({ name, role,
+  active })`. Call sites become self-documenting, argument order stops mattering, and
+  adding an option doesn't churn every caller. Keep positional params for one or two
+  obvious, required arguments.
+---
+id: prefer-error-cause
+language: typescript
+title: "Preserve the original error with the `cause` option"
+why: "When you catch and rethrow a wrapped error, passing `{ cause: err }` keeps the original stack and message for debugging; dropping it loses the root cause. A judgment call about wrapping, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you catch an error and throw a more meaningful one, chain the original with the
+  `cause` option: `throw new Error("failed to load config", { cause: err })` (ES2022).
+  Loggers and `Error.prototype.stack` surface the chain, so you keep the root cause
+  instead of discarding it.
+---
+id: custom-error-classes
+language: typescript
+title: "Define custom `Error` subclasses for distinct failures"
+why: "A dedicated `class NotFoundError extends Error` lets callers branch with `instanceof` and carry structured fields, instead of string-matching `error.message`. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give distinct failure modes their own `Error` subclass — `class ValidationError extends
+  Error { constructor(public field: string) { super(`invalid ${field}`); this.name =
+  "ValidationError"; } }`. Callers can then `catch`/`instanceof` precisely and read typed
+  fields, rather than parsing `error.message`. Set `this.name` so logs identify the type.
+---
+id: prefer-string-pad
+language: typescript
+title: "Pad strings with `padStart`/`padEnd`"
+why: "`str.padStart(n, '0')` / `padEnd` express alignment and zero-padding directly; hand-rolled loops or slice-and-concat tricks are longer and error-prone. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Align or zero-pad strings with the built-ins — `String(n).padStart(2, "0")` for a
+  two-digit field, `label.padEnd(20)` to align columns — instead of manual loops or
+  `("00" + n).slice(-2)` tricks. They state the target width and fill character plainly.
+---
+id: prefer-trim-methods
+language: typescript
+title: "Use `trim`/`trimStart`/`trimEnd` for whitespace"
+why: "The built-in trim methods remove leading/trailing whitespace clearly and correctly across Unicode whitespace; regex `replace(/^\\s+|\\s+$/g, \"\")` is noisier and easier to get wrong. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Strip surrounding whitespace with `str.trim()`, or `trimStart()`/`trimEnd()` for one
+  side, rather than a `replace(/^\s+|\s+$/g, "")` regex. The methods say what they do and
+  handle the full Unicode whitespace set. (For trimming a *specific* prefix/suffix string,
+  reach for `slice`/`replace`, not `trim`.)
+---
+id: no-deep-relative-imports
+language: typescript
+title: "Avoid deep `../../../` relative import chains"
+why: "Long `../../../` paths are brittle (they break on any file move) and obscure where a module actually lives. Path aliases or package entry points are stabler. A project-structure judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Replace deep relative imports like `../../../core/utils` with a configured path alias
+  (`@/core/utils` via `tsconfig` `paths`) or a package boundary. Deep chains break
+  whenever a file moves and hide the real dependency. Keep short relative imports
+  (`./sibling`, `../parent`) for genuinely local references.
+---
+id: avoid-barrel-files
+language: typescript
+title: "Use barrel `index.ts` re-export files sparingly"
+why: "A barrel file that re-exports a whole directory can defeat tree-shaking, create import cycles, and slow type-checking and bundling as the project grows. Whether a barrel helps is a design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Be cautious with barrel files (`index.ts` that `export *` a directory). They're
+  convenient but can pull in far more than callers use (hurting tree-shaking), introduce
+  circular imports, and inflate build/type-check times at scale. Prefer importing from the
+  specific module; reserve barrels for small, stable public APIs of a package.
+---
+id: prefer-regexp-test
+language: typescript
+title: "Use `regex.test(s)` for a boolean match"
+why: "When you only need yes/no, `regex.test(s)` returns a boolean directly; `regex.exec(s) !== null` and `s.match(regex) !== null` allocate a match result you immediately discard. Equivalent for the boolean question."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$RE.exec($S) !== null"
+    - pattern: "$RE.exec($S) != null"
+    - pattern: "$S.match($RE) !== null"
+    - pattern: "$S.match($RE) != null"
+skill_prose: |
+  To test whether a pattern matches, use `regex.test(str)` rather than
+  `regex.exec(str) !== null`. `test` returns the boolean you want without building a
+  match array. (Both advance `lastIndex` on a `/g` regex, so the statefulness is the
+  same — reset or avoid `/g` for one-off tests.)
+examples:
+  bad: "if (re.exec(s) !== null) {\n  return;\n}"
+  good: "if (re.test(s)) {\n  return;\n}"
+---
+id: prefer-structured-clone
+language: typescript
+title: "Use `structuredClone` instead of `JSON.parse(JSON.stringify(x))`"
+why: "`structuredClone(x)` is the built-in deep-clone; the `JSON.parse(JSON.stringify(x))` trick silently drops `undefined`, functions, and `Symbol`s and mangles `Date`/`Map`/`Set`. Taught rather than autofixed because the two aren't equivalent — the JSON round-trip is sometimes deliberately used to strip non-JSON values."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "JSON.parse(JSON.stringify($X))"
+skill_prose: |
+  Deep-clone with `structuredClone(x)` (Node 17+, all modern browsers) instead of
+  `JSON.parse(JSON.stringify(x))`. The JSON round-trip throws away `undefined`,
+  functions, and `Symbol`s and turns `Date`/`Map`/`Set` into the wrong thing.
+  (If you're using the round-trip *specifically* to strip non-JSON-serializable
+  values, keep it and say so.)
+examples:
+  bad: "const copy = JSON.parse(JSON.stringify(obj));"
+  good: "const copy = structuredClone(obj);"
+---
+id: prefer-immutable-updates
+language: typescript
+title: "Update objects and arrays immutably"
+why: "Returning a new value (`{ ...state, x }`, `[...xs, y]`) instead of mutating in place keeps data flow predictable, plays well with change detection (React, signals), and avoids spooky action at a distance. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Prefer producing new values over mutating existing ones: `const next = { ...state,
+  count: state.count + 1 }` and `const next = [...items, item]` rather than `state.count++`
+  or `items.push(item)`. Immutable updates make change obvious, enable cheap equality
+  checks, and prevent shared references from being mutated under callers. Mutate locally
+  when a value is freshly created and never shared, or when profiling demands it.
+---
+id: avoid-shared-mutable-state
+language: typescript
+title: "Avoid shared mutable module-level state"
+why: "Mutable singletons and module-level `let`s create hidden coupling, make tests order-dependent, and break under concurrency. Passing state explicitly or scoping it is clearer. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Don't reach for mutable module-level state (a top-level `let cache = ...` mutated from
+  many functions) as a default. It couples unrelated callers, makes tests interfere, and
+  is a concurrency hazard. Prefer passing dependencies in, returning new values, or
+  encapsulating state behind a small object with a clear API. Reserve module singletons
+  for genuinely process-global, intentionally-shared resources.
+---
+id: prefer-pure-functions
+language: typescript
+title: "Prefer pure functions for logic"
+why: "A function whose output depends only on its inputs (no I/O, no mutation of outside state) is trivial to test, memoize, and reason about. Where purity is achievable is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Push computation into pure functions — same inputs, same output, no side effects —
+  and keep I/O and mutation at the edges. Pure logic is testable without mocks,
+  parallelizable, and cacheable. You can't avoid effects entirely, so isolate them in
+  thin layers and let the core stay pure.
+---
+id: prefer-url-api
+language: typescript
+title: "Build and parse URLs with the `URL`/`URLSearchParams` API"
+why: "`new URL(...)` and `URLSearchParams` handle encoding, query parameters, and path joining correctly; hand-built URL strings drop encoding and miscompose slashes. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Construct and parse URLs with `new URL(path, base)` and `URLSearchParams` instead of
+  template-stringing them together. The API encodes query values, normalizes slashes,
+  and gives you typed access to parts — `url.searchParams.set("q", term)` — where manual
+  concatenation silently produces malformed or unescaped URLs.
+---
+id: prefer-intl-format
+language: typescript
+title: "Format numbers, dates, and currency with `Intl`"
+why: "`Intl.NumberFormat`/`Intl.DateTimeFormat` produce locale-correct output for currency, dates, and large numbers; hand-rolled formatting gets separators, rounding, and locales wrong. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Format user-facing numbers, currency, and dates with the `Intl` APIs —
+  `new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount)`
+  — rather than manual string surgery. They handle grouping separators, decimal places,
+  pluralization, and locale conventions you'd otherwise reimplement (and get wrong).
+---
+id: prefer-abort-controller
+language: typescript
+title: "Cancel async work with `AbortController`"
+why: "`AbortController`/`AbortSignal` is the standard way to cancel `fetch`, timers, and event listeners; without it, cancelled work keeps running and can update state after teardown. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Make cancellable async operations accept an `AbortSignal` and pass it through:
+  `fetch(url, { signal })`, `addEventListener(type, fn, { signal })`. An `AbortController`
+  lets callers cancel in-flight requests on unmount/timeout so stale responses don't land.
+  Thread the signal rather than tracking 'is this still mounted?' flags by hand.
+---
+id: prefer-exhaustive-switch
+language: typescript
+title: "Make `switch` over a union exhaustive with a `never` check"
+why: "Asserting the default branch is `never` turns a missing case into a compile error, so adding a union member forces you to handle it everywhere. A defensive-design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When switching over a discriminated union, add a default that assigns the value to a
+  `never`: `default: { const _exhaustive: never = kind; throw new Error(_exhaustive); }`.
+  Now extending the union with a new variant produces a type error at every unhandled
+  switch, instead of silently falling through at runtime.
+---
+id: prefer-type-guards
+language: typescript
+title: "Narrow with user-defined type guards, not casts"
+why: "A predicate returning `x is T` narrows the type with a real runtime check the compiler trusts; an `as T` cast asserts without checking. A judgment call about where guards pay off, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you must distinguish shapes at runtime, write a type-guard function —
+  `function isUser(x: unknown): x is User { return typeof x === "object" && x !== null &&
+  "id" in x; }` — and branch on it. The compiler narrows safely afterward, and the check
+  actually runs, unlike an `as User` cast that only quiets the type checker.
+---
+id: prefer-generic-constraints
+language: typescript
+title: "Constrain generics instead of widening to `any`"
+why: "A bounded type parameter (`<T extends { id: string }>`) keeps a function generic while still type-checking what it uses; falling back to `any` parameters discards all safety. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Express 'works for any type that has X' with a generic constraint —
+  `function byId<T extends { id: string }>(items: T[])` — rather than typing the
+  parameter as `any`. The constraint preserves the caller's concrete type through the
+  function and lets you safely touch the members you require.
+---
+id: avoid-magic-numbers
+language: typescript
+title: "Name magic numbers as constants"
+why: "A bare literal like `86400000` in an expression hides its meaning; a named `const MS_PER_DAY` documents intent and centralizes the value. Which literals deserve names is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give meaningful numeric literals a name: `const MAX_RETRIES = 3`, `const MS_PER_DAY =
+  86_400_000`. A named constant explains what the number means and gives you one place to
+  change it. The obvious exceptions — `0`, `1`, `-1`, array indices — stay inline; reach
+  for a name once a number carries domain meaning or repeats.
+---
+id: avoid-magic-strings
+language: typescript
+title: "Replace repeated string literals with named constants or unions"
+why: "Repeating a literal like `\"pending\"` across the codebase invites typos that the compiler can't catch; a `const`, enum, or literal union centralizes it and makes mismatches type errors. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a string literal carries meaning and appears in more than one place — status
+  values, event names, keys — promote it to a named constant or a literal-union type
+  (`type Status = \"pending\" | \"done\"`). Typos become compile errors and renames are
+  mechanical, instead of relying on every call site spelling the magic string the same way.
+---
+id: prefer-private-class-fields
+language: typescript
+title: "Encapsulate internal class state"
+why: "Marking fields `private` (or using `#name` hard-private) documents the boundary and prevents callers from depending on internals you may change. Where to draw the line is a design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Keep a class's internal state non-public: `private` for type-level encapsulation, or
+  `#field` for true runtime privacy that can't be reached even with `as any`. Expose
+  behavior through methods and `get`/`set` rather than public mutable fields, so you can
+  change the representation without breaking callers.
+---
+id: prefer-composition-over-inheritance
+language: typescript
+title: "Prefer composition over deep inheritance"
+why: "Deep class hierarchies couple subclasses to base internals and get rigid fast; composing small pieces (functions, objects, interfaces) stays flexible. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Build behavior by composing small units — passing in collaborators, combining
+  functions, implementing interfaces — rather than extending a tall class hierarchy.
+  Inheritance hard-wires subclasses to a base's internals and the fragile-base-class
+  problem; composition lets you swap and test parts independently. Reserve `extends`
+  for genuine is-a relationships with a stable base.
+---
+id: validate-at-boundaries
+language: typescript
+title: "Validate and parse external data at the boundary"
+why: "Data from the network, files, or user input is `unknown` until validated; parsing it into a typed shape at the edge (with a schema library or guards) keeps the rest of the code honestly typed. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Treat all external input as untrusted and parse it into a known type at the system's
+  edge — with a schema validator (zod, valibot) or explicit type guards — before it flows
+  inward. 'Parse, don't validate': downstream code then receives a real `User`, not an
+  `any` you keep re-checking. Don't `as`-cast a `fetch().json()` result and hope.
+---
+id: prefer-branded-types
+language: typescript
+title: "Brand primitive IDs to prevent mix-ups"
+why: "A `UserId` and `OrderId` that are both `string` can be swapped at a call site with no error; a branded type makes them distinct to the compiler. Where branding pays off is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When several distinct concepts share a primitive representation, brand them so they
+  can't be confused: `type UserId = string & { readonly __brand: \"UserId\" }`. The
+  compiler then rejects passing an `OrderId` where a `UserId` is expected, catching a
+  whole class of argument-swap bugs that bare `string` parameters allow.
+---
+id: avoid-enum-prefer-union
+language: typescript
+title: "Prefer literal unions (or `as const`) over `enum`"
+why: "TypeScript `enum`s emit runtime objects, have surprising numeric/reverse-mapping semantics, and don't tree-shake well; a literal union or `as const` object is simpler and erases cleanly. A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Prefer a string-literal union — `type Color = \"red\" | \"green\" | \"blue\"` — or an
+  `as const` object over a TypeScript `enum`. Enums generate runtime code, numeric enums
+  allow out-of-range assignment, and `const enum` has its own build caveats. Unions are
+  type-only, tree-shake to nothing, and interoperate naturally with plain strings.
+---
+id: organize-imports
+language: typescript
+title: "Group and order imports consistently"
+why: "A consistent import order — external packages, then internal modules, then relative — read top to bottom makes dependencies scannable and minimizes merge conflicts. A style convention, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Keep imports grouped and ordered: third-party packages first, then absolute/internal
+  modules, then relative imports, with `import type` separated or inlined consistently.
+  Let a tool (`eslint-plugin-import`, Biome, `organizeImports`) enforce it so diffs stay
+  small and readers can see a file's dependencies at a glance.
+---
+id: document-public-api
+language: typescript
+title: "Document public APIs with TSDoc"
+why: "A TSDoc comment on an exported function or type surfaces in editor hovers and generated docs, explaining contract and intent that the signature alone can't. Where docs add value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Add TSDoc (`/** ... */`) to exported functions, classes, and types — describe what it
+  does, non-obvious parameters, thrown errors, and examples. It powers IntelliSense at
+  every call site and doc generators. Skip narrating trivial internals; spend the words on
+  public contracts and anything surprising.
+---
+id: comments-explain-why
+language: typescript
+title: "Write comments that explain *why*, not *what*"
+why: "A comment restating what the code already says rots and adds noise; a comment capturing intent, a workaround's reason, or a non-obvious constraint is durable value. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Comment the *why* — the reason behind a workaround, a link to the bug it fixes, an
+  invariant that isn't obvious — not the *what* the code already states. `i++; // increment
+  i` is noise; `// API returns 1-based pages` earns its place. If you feel the need to
+  explain *what*, prefer renaming or restructuring so the code says it itself.
+---
+id: prefer-positive-conditionals
+language: typescript
+title: "Phrase conditionals positively where it reads clearer"
+why: "Double negatives (`if (!isNotReady)`) and negated complex conditions force the reader to mentally invert; a positively-named predicate or an early-return for the negative case reads straighter. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Prefer positively-phrased conditions and predicate names — `if (isReady)` over
+  `if (!isNotReady)`, `hasItems` over `!isEmpty` when that's what you mean. For a guard,
+  handle the negative case with an early return so the main path stays affirmative.
+  Negation is fine; stacked or double negation is what to avoid.
+---
+id: prefer-small-functions
+language: typescript
+title: "Keep functions small and single-purpose"
+why: "A function that does one thing is easier to name, test, and reuse than a long one juggling several concerns. Where to split is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Aim for functions that do one thing at one level of abstraction. When a function grows
+  long, mixes unrelated steps, or needs a comment to delimit 'sections', extract those
+  sections into named helpers. Smaller functions read like prose, are unit-testable in
+  isolation, and surface reuse. Don't over-fragment trivial logic — split along real seams.
+---
+id: avoid-flag-parameters
+language: typescript
+title: "Avoid boolean flag parameters that switch behavior"
+why: "A boolean argument like `render(true)` is meaningless at the call site and usually means the function does two things; splitting it into two functions is clearer. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  A boolean parameter that selects between two behaviors — `save(data, true)` — is
+  opaque at the call site and a sign the function has two jobs. Prefer two well-named
+  functions (`saveDraft` / `savePublished`) or, when a flag is genuinely a configuration
+  value, pass it as a named field of an options object so the call reads `save(data, {
+  publish: true })`.
+---
+id: prefer-early-continue
+language: typescript
+title: "Use `continue` to flatten loop bodies"
+why: "Skipping unwanted iterations with an early `continue` keeps the real work unindented, just as guard clauses do for functions. A structural judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Inside a loop, skip cases you don't care about with an early `continue` —
+  `if (!item.active) continue;` — instead of wrapping the whole body in `if (item.active)
+  { ... }`. The meaningful work stays at the left margin and the filter condition reads
+  up front.
+---
+id: extract-complex-conditions
+language: typescript
+title: "Name complex boolean conditions"
+why: "A multi-clause condition inline in an `if` is hard to parse and impossible to reuse; lifting it into a well-named `const isEligible = ...` documents intent. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an `if` condition combines several clauses, extract it into a named boolean —
+  `const isEligible = age >= 18 && hasConsent && !isBanned;` then `if (isEligible)`.
+  The name explains the intent, the `if` reads at a glance, and the predicate can be
+  reused or tested. For reusable domain rules, promote it to a named function.
+---
+id: extract-helper-functions
+language: typescript
+title: "Extract repeated or complex logic into named helpers"
+why: "Duplicated or intricate inline logic is hard to follow and drifts out of sync when copied; a named helper gives it one definition and one place to fix. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When the same computation appears more than once, or a block is intricate enough to
+  need a mental pause, pull it into a named function. One definition means one place to
+  fix bugs and a name that documents what the block does. Balance against over-abstraction:
+  extract on the second real repetition, not on speculation.
+---
+id: consistent-return-types
+language: typescript
+title: "Return a consistent type from a function"
+why: "A function that sometimes returns a value, sometimes `undefined`, and sometimes throws is hard to consume; settling on one shape (or a typed union/result) makes call sites simpler. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Make a function's return shape consistent across all paths. Mixing
+  `return value` / `return null` / `return undefined` / falling off the end forces
+  every caller to handle several cases. Decide on one contract — always `T`, a
+  `T | null`, or a `Result<T, E>` — and let the return type state it.
+---
+id: handle-promise-rejections
+language: typescript
+title: "Handle or propagate every promise rejection"
+why: "An unhandled rejection crashes Node (and is silent in some browsers); every async path needs an `await` in a `try`/`catch`, a `.catch`, or a deliberate propagation. A correctness judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Make sure every promise's rejection is handled or intentionally propagated: `await`
+  inside `try`/`catch`, attach `.catch`, or return the promise so a caller handles it.
+  A fire-and-forget `doAsync()` with no handler becomes an unhandled rejection — a Node
+  crash and a silent failure elsewhere. Mark genuine fire-and-forget with `void` and a
+  `.catch` for logging.
+---
+id: prefer-finally-cleanup
+language: typescript
+title: "Release resources in a `finally` block"
+why: "Cleanup that runs only on the success path leaks resources when the body throws; a `finally` (or a disposable/`using`) guarantees it runs either way. A correctness judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Put resource cleanup — closing handles, clearing timers, releasing locks — in a
+  `finally` block (or use `await using` with `Symbol.asyncDispose`) so it runs whether the
+  body succeeds or throws. Cleanup placed only after the work silently leaks on any early
+  return or exception.
+---
+id: avoid-throw-in-finally
+language: typescript
+title: "Don't `throw` or `return` from a `finally` block"
+why: "A `throw`/`return` in `finally` overrides any exception or return from the `try`/`catch`, silently swallowing the original outcome. A correctness rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Never `return` or `throw` from a `finally` block. It supersedes whatever the `try` or
+  `catch` was about to return or throw, so the real result — including a real error —
+  vanishes without a trace. Keep `finally` to side-effect-free cleanup; let the `try`/
+  `catch` decide the outcome.
+---
+id: fail-fast-on-invalid-input
+language: typescript
+title: "Validate inputs and fail fast"
+why: "Checking preconditions at the top of a function and throwing immediately surfaces bad input where it enters, instead of letting it corrupt state and fail confusingly later. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Validate arguments and preconditions at the start of a function and throw (or return an
+  error) immediately on violation. Failing fast at the boundary gives a clear, local error
+  instead of a corrupted value that blows up three layers deeper. Pair with guard clauses
+  so the happy path follows the checks.
+---
+id: prefer-dependency-injection
+language: typescript
+title: "Inject dependencies instead of hard-coding them"
+why: "A function that reaches out to construct its own database client, clock, or HTTP layer is hard to test and rigid; receiving those as parameters makes it swappable and mockable. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Pass collaborators in — a repository, a `fetch` impl, a clock — rather than newing them
+  up or importing a singleton inside the function. Injected dependencies let tests
+  substitute fakes, make coupling explicit in the signature, and let one implementation
+  serve many contexts. A small factory or constructor parameter is usually enough; you
+  rarely need a DI framework.
+---
+id: prefer-async-iteration
+language: typescript
+title: "Consume async sequences with `for await...of`"
+why: "`for await (const x of stream)` reads a sequence of async values with normal control flow; manual recursion over `.next()` or chained `.then`s is harder to follow. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Iterate async iterables and streams with `for await (const chunk of source)` instead of
+  hand-rolling `.next()` loops or recursive `.then` chains. It backpressures naturally and
+  reads like a normal loop. Define producers as `async function*` generators so consumers
+  get this for free.
+---
+id: avoid-sync-io-in-async
+language: typescript
+title: "Avoid synchronous I/O on the hot path"
+why: "Blocking calls like `fs.readFileSync` or `execSync` stall the event loop, freezing every other request/timer in the process. The async variants keep it responsive. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  In server and UI code, avoid synchronous I/O — `fs.readFileSync`, `execSync`,
+  long synchronous loops — on the request/render path. They block the single event loop,
+  so nothing else makes progress until they finish. Use the `fs/promises` async APIs and
+  yield to the loop. Sync I/O is fine in CLI startup or build scripts where nothing else runs.
+---
+id: externalize-configuration
+language: typescript
+title: "Externalize configuration and secrets"
+why: "Hard-coded URLs, credentials, and tunables couple code to one environment and risk leaking secrets into version control; reading them from config/env keeps them out of source. A practice judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Keep environment-specific values — endpoints, credentials, feature toggles, limits —
+  out of the source and read them from configuration or environment variables, validated
+  once at startup. Never commit secrets. Centralizing config makes the app portable across
+  environments and keeps sensitive values out of git history.
+---
+id: avoid-premature-optimization
+language: typescript
+title: "Prefer clarity first; optimize with evidence"
+why: "Micro-optimizing before measuring trades readability for guessed-at gains that often don't matter; clear code plus profiling targets the real hot spots. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write the clear version first, then optimize the parts a profiler proves are hot.
+  Hand-tuning loops, caching speculatively, or contorting code for imagined performance
+  usually costs readability for no measurable win — and hides the genuine bottleneck
+  (often I/O, not CPU). Make it correct and clear, measure, then optimize with data.
+---
+id: colocate-related-code
+language: typescript
+title: "Keep related code close together"
+why: "Code that changes together should live together; scattering a feature across distant files by technical layer makes it hard to find and easy to break. An organization judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Organize by feature/domain so the pieces that change together — component, its types,
+  its tests, its helpers — sit in one place, rather than splitting everything by technical
+  layer across the tree. Colocation shortens the path from 'I need to change X' to every
+  file involved, and keeps modules cohesive.
+---
+id: prefer-readable-over-clever
+language: typescript
+title: "Prefer readable code over clever one-liners"
+why: "A dense expression that takes minutes to decode costs every future reader; a slightly longer, obvious version is cheaper over the code's life. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Optimize for the reader. A clever chained reduce, a nested ternary, or a bit-twiddling
+  trick that 'saves a line' usually costs far more in comprehension than it saves. Choose
+  the version a teammate understands at a glance — name intermediate steps, prefer obvious
+  constructs — unless a measured hot path genuinely requires the dense form (then comment it).
+---
+id: avoid-deep-property-chains
+language: typescript
+title: "Avoid reaching through long property chains"
+why: "Code that digs `a.b.c.d.method()` is tightly coupled to a distant object's shape and breaks when any link changes; asking the immediate collaborator for what you need is more robust (Law of Demeter). A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Avoid threading through long chains like `order.customer.address.city.toUpperCase()`.
+  Each link couples you to a structure you don't own, so a change anywhere along it breaks
+  you. Have the immediate object expose what you need (`order.shippingCity()`), or
+  destructure the needed piece once at a boundary. Optional-chaining a deep path hides the
+  same coupling.
+---
+id: prefer-descriptive-names
+language: typescript
+title: "Use descriptive names over abbreviations"
+why: "Names like `usr`, `calcTtl`, or `d` force readers to decode intent; full words (`user`, `calculateTotal`, `delay`) read directly. The conventional short names (`i`, `id`) are fine. A naming judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Name things for what they are, spelled out: `elapsedMs`, `pendingOrders`,
+  `calculateInvoiceTotal` — not `e`, `po`, or `calcInvTot`. Code is read far more than
+  written, and editors autocomplete long names anyway. The established short ones — `i`/`j`
+  for indices, `id`, `url`, a one-letter arg in a tiny arrow — stay; everything carrying
+  meaning gets a real word.
+---
+id: prefer-consistent-async-style
+language: typescript
+title: "Don't mix callbacks and promises for the same flow"
+why: "Interleaving Node-style callbacks, raw promises, and `async`/`await` in one path is confusing and error-prone; settling on promises/`await` end to end is clearer. A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Pick one async style per flow — almost always promises with `async`/`await` — and stay
+  with it. Wrap legacy callback APIs once at the edge (`util.promisify`, `new Promise`)
+  so the rest of the code is uniform. Mixing callbacks, `.then` chains, and `await` in the
+  same path makes ordering and error handling hard to follow.
+---
+id: prefer-immutable-data-by-default
+language: typescript
+title: "Default to immutable data, mutate deliberately"
+why: "Treating values as immutable by default removes a whole class of aliasing bugs; mutation becomes a conscious, localized choice rather than the ambient default. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Lean toward immutable data: `const`, `readonly` fields and arrays, and returning new
+  values from transforms. Confining mutation to small, local, clearly-marked spots makes
+  it far easier to reason about who can change what. Reach for in-place mutation as a
+  deliberate, profiled optimization on freshly-created, unshared data — not as the default.
+---
+id: prefer-const-over-let
+language: typescript
+title: "Default to `const`; use `let` only when you reassign"
+why: "`const` documents that a binding never changes, which removes a question for every reader and lets tooling catch accidental reassignment. Whether a binding is truly const depends on the code, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Declare with `const` by default and switch to `let` only where you actually
+  reassign the binding. `const` tells the reader (and the compiler) the reference is
+  fixed, eliminating a class of accidental-mutation bugs. (It constrains the binding,
+  not the object — a `const` array can still be `.push`-ed.)
+---
+id: prefer-rest-over-arguments
+language: typescript
+title: "Use rest parameters instead of the `arguments` object"
+why: "`arguments` is an array-like, not an array; it doesn't exist in arrow functions and defeats typing. Rest parameters (`...args`) are a real typed array. A judgment call on signature shape, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Collect variadic arguments with a rest parameter — `function f(...args: number[])`
+  — instead of the legacy `arguments` object. `...args` is a real array (so `.map`,
+  `.reduce`, spread all work), is properly typed, and is available in arrow functions
+  where `arguments` is not.
+---
+id: prefer-default-parameters
+language: typescript
+title: "Use default parameters instead of in-body fallbacks"
+why: "`function f(x = 10)` declares the default in the signature where callers and tooling see it; `x = x ?? 10` inside the body hides it. A judgment call (defaults only fire on `undefined`), so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give optional parameters a default in the signature — `function greet(name = "world")`
+  — instead of patching them in the body with `name = name ?? "world"`. The default is
+  visible in the signature and in editor hints. (Remember a parameter default fires
+  only for `undefined`, not for `null` or other falsy values.)
+---
+id: prefer-arrow-callbacks
+language: typescript
+title: "Prefer arrow functions for inline callbacks"
+why: "Arrow functions are terse and capture the surrounding `this` lexically, avoiding the classic `function` callback `this`-rebinding bug. Whether a given function should be an arrow is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For inline callbacks, prefer an arrow function — `items.map((x) => x.id)` — over a
+  `function` expression. Arrows are shorter and, crucially, capture `this` lexically,
+  so callbacks passed to event handlers and array methods don't lose their binding.
+  Use a named `function` declaration when you need hoisting, a name in stack traces,
+  or a dynamic `this`.
+---
+id: prefer-async-await
+language: typescript
+title: "Prefer `async`/`await` over `.then()` chains"
+why: "`await` lets asynchronous code read top-to-bottom with normal control flow and `try`/`catch`; long `.then()/.catch()` chains obscure ordering and error paths. A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write asynchronous logic with `async`/`await` so it reads sequentially and uses
+  ordinary `try`/`catch` for errors, instead of threading callbacks through
+  `.then().then().catch()`. Reach for explicit `.then`/`Promise` combinators when you
+  genuinely want concurrency (`Promise.all`) or point-free composition.
+---
+id: prefer-promise-all
+language: typescript
+title: "Run independent awaits concurrently with `Promise.all`"
+why: "Awaiting independent promises one after another serializes work that could overlap; `Promise.all` runs them concurrently and waits once. Whether the operations are truly independent is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When several `await`ed operations don't depend on each other, start them together
+  and await once: `const [a, b] = await Promise.all([getA(), getB()])`. Sequential
+  `const a = await getA(); const b = await getB();` needlessly serializes them. Keep
+  the sequential form when a later call genuinely needs an earlier result.
+---
+id: no-await-in-loop
+language: typescript
+title: "Avoid `await` inside a loop over independent work"
+why: "Awaiting inside a `for` loop processes items strictly one at a time; if the iterations are independent they can run concurrently with `Promise.all(items.map(...))`. Whether iterations are independent is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  An `await` in a loop body serializes the iterations. When each iteration is
+  independent, map to promises and await them together:
+  `await Promise.all(items.map((x) => process(x)))`. Keep the sequential `for`/`await`
+  when iterations depend on each other or you must throttle concurrency (then use a
+  pool/`p-limit`).

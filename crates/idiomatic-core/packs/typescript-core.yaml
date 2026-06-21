@@ -448,3 +448,369 @@ skill_prose: |
   hard-to-scan line. Unfold it into early returns, an `if`/`else if` chain, or a
   lookup map. A single `cond ? a : b` is fine; once you'd nest a second `?:`, switch
   to statements.
+---
+id: no-object-constructor
+language: typescript
+title: "Use an object literal instead of `new Object()`"
+why: "`new Object()` is verbose and offers nothing over `{}`; the literal is the universal idiom."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "new Object()"
+fix: "{}"
+skill_prose: |
+  Prefer the object literal `{}` over `new Object()`. The constructor is longer and
+  buys nothing. (Only the zero-argument form is autofixed.)
+examples:
+  bad: "const o = new Object();"
+  good: "const o = {};"
+---
+id: no-unneeded-ternary
+language: typescript
+title: "Use `Boolean(x)` instead of `x ? true : false`"
+why: "`cond ? true : false` is a verbose way to coerce to boolean; `Boolean(cond)` says it directly and is exactly equivalent."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "$X ? true : false"
+fix: "Boolean($X)"
+skill_prose: |
+  A ternary whose branches are `true` and `false` is just a boolean coercion —
+  write `Boolean(cond)` instead of `cond ? true : false`. If `cond` is already a
+  boolean you can often drop the wrapper entirely.
+examples:
+  bad: "const b = cond ? true : false;"
+  good: "const b = Boolean(cond);"
+---
+id: no-self-compare
+language: typescript
+title: "Don't compare a value to itself"
+why: "`x === x` is always true (and `x !== x` always false) except for `NaN`; if you mean the NaN check, say `Number.isNaN(x)`. Otherwise it's a bug or dead code."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$X === $X"
+    - pattern: "$X !== $X"
+skill_prose: |
+  Comparing a value to itself with `===`/`!==` is a no-op for everything except
+  `NaN`. If you're checking for `NaN`, use `Number.isNaN(x)` — it states the intent.
+  Otherwise the duplicated operand is almost always a typo for a different variable.
+examples:
+  bad: "if (x === x) {\n  return;\n}"
+  good: "if (Number.isNaN(x)) {\n  return;\n}"
+---
+id: no-nan-equality
+language: typescript
+title: "Use `Number.isNaN(x)` instead of comparing to `NaN`"
+why: "`NaN` is never equal to anything, including itself, so `x === NaN` is always false. Only `Number.isNaN(x)` actually detects it."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$X === NaN"
+    - pattern: "$X !== NaN"
+    - pattern: "NaN === $X"
+    - pattern: "NaN !== $X"
+skill_prose: |
+  Never compare against `NaN` with `===`/`!==`: by IEEE-754 `NaN` is unequal to
+  everything, so `x === NaN` is permanently false. Detect it with `Number.isNaN(x)`.
+examples:
+  bad: "if (x === NaN) {\n  return;\n}"
+  good: "if (Number.isNaN(x)) {\n  return;\n}"
+---
+id: prefer-array-some
+language: typescript
+title: "Use `.some()` instead of `.filter(...).length > 0`"
+why: "`arr.some(pred)` answers the existence question directly and short-circuits; `.filter(pred).length > 0` builds a throwaway array and scans the whole input. Taught rather than autofixed because `filter` runs the predicate on every element while `some` stops early, so a side-effecting predicate changes behavior."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$A.filter($F).length > 0"
+    - pattern: "$A.filter($F).length !== 0"
+skill_prose: |
+  To ask whether any element matches, use `arr.some(pred)` rather than
+  `arr.filter(pred).length > 0`. `some` short-circuits on the first hit and allocates
+  nothing. (Mind a predicate with side effects: `filter` calls it on every element,
+  `some` stops at the first match.)
+examples:
+  bad: "const has = items.filter(f).length > 0;"
+  good: "const has = items.some(f);"
+---
+id: prefer-array-find
+language: typescript
+title: "Use `.find()` instead of `.filter(...)[0]`"
+why: "`arr.find(pred)` returns the first match and stops; `arr.filter(pred)[0]` builds the full matching array just to take its head. Taught rather than autofixed because `filter` evaluates the predicate on every element."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A.filter($F)[0]"
+skill_prose: |
+  To get the first matching element, use `arr.find(pred)` instead of
+  `arr.filter(pred)[0]`. `find` short-circuits and returns `undefined` when nothing
+  matches, identical to indexing an empty array — but without building it.
+examples:
+  bad: "const first = items.filter(f)[0];"
+  good: "const first = items.find(f);"
+---
+id: prefer-flatmap
+language: typescript
+title: "Use `.flatMap()` instead of `.map(...).flat()`"
+why: "`arr.flatMap(f)` maps and flattens one level in a single pass; `.map(f).flat()` allocates an intermediate array. They're equivalent for one level of flattening."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A.map($F).flat()"
+skill_prose: |
+  When you map and then flatten one level, use `arr.flatMap(f)` instead of
+  `arr.map(f).flat()`. It's one pass with no intermediate array. (`flatMap` only
+  flattens a single level; keep `.flat(depth)` when you need deeper flattening.)
+examples:
+  bad: "const r = items.map(f).flat();"
+  good: "const r = items.flatMap(f);"
+---
+id: prefer-array-isarray
+language: typescript
+title: "Use `Array.isArray(x)` instead of `x instanceof Array`"
+why: "`instanceof Array` returns false for arrays created in another realm (iframe, worker, vm); `Array.isArray` works across realms and is the canonical check."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X instanceof Array"
+skill_prose: |
+  Detect arrays with `Array.isArray(x)`, not `x instanceof Array`. `instanceof`
+  checks the prototype chain against *this* realm's `Array`, so it misreports arrays
+  passed from an iframe, worker, or `vm` context. `Array.isArray` has no such blind spot.
+examples:
+  bad: "if (x instanceof Array) {\n  return;\n}"
+  good: "if (Array.isArray(x)) {\n  return;\n}"
+---
+id: prefer-spread-over-apply
+language: typescript
+title: "Use spread instead of `fn.apply(null, args)`"
+why: "`fn(...args)` is the modern way to call a function with an array of arguments; `fn.apply(null, args)` is the pre-ES2015 idiom and obscures the call. Taught rather than autofixed because `apply` also rebinds `this`, so the rewrite is only equivalent when the thisArg is `null`/`undefined`."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$F.apply(null, $ARGS)"
+    - pattern: "$F.apply(undefined, $ARGS)"
+skill_prose: |
+  Spread an argument array into a call — `fn(...args)` — instead of
+  `fn.apply(null, args)`. Spread reads as a normal call and composes with other
+  arguments. (When `apply`'s first argument is a real object it's rebinding `this`;
+  use `fn.call`/`Reflect.apply` deliberately there rather than spread.)
+examples:
+  bad: "const r = fn.apply(null, args);"
+  good: "const r = fn(...args);"
+---
+id: prefer-optional-call
+language: typescript
+title: "Use optional chaining for guarded method calls"
+why: "`obj?.run()` is shorter and clearer than `obj && obj.run()`, and avoids the truthiness pitfalls of an `&&` guard."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$A && $A.$M()"
+skill_prose: |
+  Guard a method call with optional chaining — `obj?.run()` — instead of
+  `obj && obj.run()`. It expresses 'call only if present' directly and skips the
+  call (yielding `undefined`) when `obj` is nullish, without treating `0`/`""` as absent.
+examples:
+  bad: "const r = obj && obj.run();"
+  good: "const r = obj?.run();"
+---
+id: prefer-object-spread
+language: typescript
+title: "Use object spread instead of `Object.assign({}, ...)`"
+why: "`{ ...a, ...b }` builds a new merged object as a literal; `Object.assign({}, a, b)` does the same thing with more ceremony. Taught rather than autofixed because `Object.assign` triggers setters on the target whereas spread defines own properties — a difference that matters only in rare cases."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "Object.assign({}, $$$SRC)"
+skill_prose: |
+  Merge into a fresh object with spread — `{ ...a, ...b }` — instead of
+  `Object.assign({}, a, b)`. The literal reads as construction and is the common
+  idiom. (Keep `Object.assign(target, ...)` when you intend to mutate an existing
+  object in place rather than create a new one.)
+examples:
+  bad: "const merged = Object.assign({}, a, b);"
+  good: "const merged = { ...a, ...b };"
+---
+id: prefer-logical-assignment
+language: typescript
+title: "Use logical assignment (`||=`, `??=`, `&&=`)"
+why: "`a ||= b` / `a ??= b` / `a &&= b` say 'assign conditionally' in one operator; `a = a || b` restates the target. Taught rather than autofixed because the compound form short-circuits the assignment (skipping setters) where the expanded form always assigns."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$A = $A || $B"
+    - pattern: "$A = $A ?? $B"
+    - pattern: "$A = $A && $B"
+skill_prose: |
+  Collapse `a = a || b` into `a ||= b`, `a = a ?? b` into `a ??= b`, and
+  `a = a && b` into `a &&= b` (ES2021 logical assignment). Prefer `??=` over `||=`
+  for defaults so a real `0`/`""`/`false` isn't overwritten.
+examples:
+  bad: "x = x || 5;"
+  good: "x ||= 5;"
+---
+id: prefer-destructuring
+language: typescript
+title: "Destructure objects and arrays instead of repeated member access"
+why: "Pulling several fields out with `const { a, b, c } = obj` is shorter and names the bindings once, versus `const a = obj.a; const b = obj.b;`. Whether destructuring improves a given spot is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you read several properties off the same object (or several elements off an
+  array), destructure: `const { id, name, role } = user;` instead of three
+  `user.x` reads. It names the bindings once and signals exactly which fields you
+  depend on. Skip it when you only touch one property or want to keep the receiver visible.
+---
+id: prefer-numeric-separators
+language: typescript
+title: "Use numeric separators in large number literals"
+why: "`1_000_000` is far easier to read at a glance than `1000000`; the underscores are ignored by the parser. A readability judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Group digits in large numeric literals with `_` separators — `1_000_000`,
+  `0xFF_EC_DE`, `1_000.50` — so magnitude is readable without counting zeros. The
+  separators are purely cosmetic and don't change the value. Reserve them for
+  numbers big enough that grouping helps.
+---
+id: prefer-object-entries
+language: typescript
+title: "Iterate with `Object.entries` instead of keys-then-index"
+why: "`for (const [k, v] of Object.entries(obj))` yields key and value together; `Object.keys(obj)` followed by `obj[k]` re-indexes on every iteration. Whether you need both is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you need both key and value, iterate `Object.entries(obj)` and destructure
+  `[key, value]`, rather than looping `Object.keys(obj)` and re-reading `obj[key]`.
+  Use `Object.values(obj)` when you only want values and `Object.keys(obj)` when you
+  only want keys.
+---
+id: prefer-set-for-membership
+language: typescript
+title: "Use a `Set` for repeated membership tests"
+why: "Checking `array.includes(x)` inside a loop is O(n) each time, making the whole thing O(n·m); a `Set` lookup is O(1). When and whether to switch is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you test membership against the same collection many times — especially in a
+  loop — build a `Set` once and use `set.has(x)` (O(1)) instead of `array.includes(x)`
+  (O(n)). For a handful of checks against a short array, `includes` is fine and reads
+  more simply.
+---
+id: prefer-map-over-record
+language: typescript
+title: "Use a `Map` instead of a plain object for a dynamic dictionary"
+why: "A plain object as a keyed store inherits prototype keys (`__proto__`, `toString`), only allows string/symbol keys, and has no clean size/iteration API. `Map` avoids all of this. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When keys are dynamic, arbitrary, or non-string, reach for `Map` rather than a
+  plain `{}`. `Map` has any-type keys, ordered iteration, a real `.size`, and no
+  prototype-pollution surprises (`obj["__proto__"]`). Keep plain objects for fixed,
+  known-at-author-time shapes that you'll also type with an interface.
+---
+id: no-for-in-array
+language: typescript
+title: "Don't iterate arrays with `for...in`"
+why: "`for...in` enumerates string keys including inherited and non-index properties, in no guaranteed order — almost never what you want for an array. Use `for...of` or array methods. A judgment call about the right replacement, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Never loop an array with `for (const i in arr)`: it yields *string* keys, walks
+  inherited enumerable properties, and isn't index-ordered by spec. Use
+  `for (const item of arr)` for values, `arr.entries()` when you need the index, or
+  `arr.forEach`. Reserve `for...in` for plain objects (with a `hasOwnProperty` guard).
+---
+id: prefer-const-over-let
+language: typescript
+title: "Default to `const`; use `let` only when you reassign"
+why: "`const` documents that a binding never changes, which removes a question for every reader and lets tooling catch accidental reassignment. Whether a binding is truly const depends on the code, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Declare with `const` by default and switch to `let` only where you actually
+  reassign the binding. `const` tells the reader (and the compiler) the reference is
+  fixed, eliminating a class of accidental-mutation bugs. (It constrains the binding,
+  not the object — a `const` array can still be `.push`-ed.)
+---
+id: prefer-rest-over-arguments
+language: typescript
+title: "Use rest parameters instead of the `arguments` object"
+why: "`arguments` is an array-like, not an array; it doesn't exist in arrow functions and defeats typing. Rest parameters (`...args`) are a real typed array. A judgment call on signature shape, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Collect variadic arguments with a rest parameter — `function f(...args: number[])`
+  — instead of the legacy `arguments` object. `...args` is a real array (so `.map`,
+  `.reduce`, spread all work), is properly typed, and is available in arrow functions
+  where `arguments` is not.
+---
+id: prefer-default-parameters
+language: typescript
+title: "Use default parameters instead of in-body fallbacks"
+why: "`function f(x = 10)` declares the default in the signature where callers and tooling see it; `x = x ?? 10` inside the body hides it. A judgment call (defaults only fire on `undefined`), so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give optional parameters a default in the signature — `function greet(name = "world")`
+  — instead of patching them in the body with `name = name ?? "world"`. The default is
+  visible in the signature and in editor hints. (Remember a parameter default fires
+  only for `undefined`, not for `null` or other falsy values.)
+---
+id: prefer-arrow-callbacks
+language: typescript
+title: "Prefer arrow functions for inline callbacks"
+why: "Arrow functions are terse and capture the surrounding `this` lexically, avoiding the classic `function` callback `this`-rebinding bug. Whether a given function should be an arrow is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For inline callbacks, prefer an arrow function — `items.map((x) => x.id)` — over a
+  `function` expression. Arrows are shorter and, crucially, capture `this` lexically,
+  so callbacks passed to event handlers and array methods don't lose their binding.
+  Use a named `function` declaration when you need hoisting, a name in stack traces,
+  or a dynamic `this`.
+---
+id: prefer-async-await
+language: typescript
+title: "Prefer `async`/`await` over `.then()` chains"
+why: "`await` lets asynchronous code read top-to-bottom with normal control flow and `try`/`catch`; long `.then()/.catch()` chains obscure ordering and error paths. A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write asynchronous logic with `async`/`await` so it reads sequentially and uses
+  ordinary `try`/`catch` for errors, instead of threading callbacks through
+  `.then().then().catch()`. Reach for explicit `.then`/`Promise` combinators when you
+  genuinely want concurrency (`Promise.all`) or point-free composition.
+---
+id: prefer-promise-all
+language: typescript
+title: "Run independent awaits concurrently with `Promise.all`"
+why: "Awaiting independent promises one after another serializes work that could overlap; `Promise.all` runs them concurrently and waits once. Whether the operations are truly independent is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When several `await`ed operations don't depend on each other, start them together
+  and await once: `const [a, b] = await Promise.all([getA(), getB()])`. Sequential
+  `const a = await getA(); const b = await getB();` needlessly serializes them. Keep
+  the sequential form when a later call genuinely needs an earlier result.
+---
+id: no-await-in-loop
+language: typescript
+title: "Avoid `await` inside a loop over independent work"
+why: "Awaiting inside a `for` loop processes items strictly one at a time; if the iterations are independent they can run concurrently with `Promise.all(items.map(...))`. Whether iterations are independent is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  An `await` in a loop body serializes the iterations. When each iteration is
+  independent, map to promises and await them together:
+  `await Promise.all(items.map((x) => process(x)))`. Keep the sequential `for`/`await`
+  when iterations depend on each other or you must throttle concurrency (then use a
+  pool/`p-limit`).

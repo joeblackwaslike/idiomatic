@@ -507,3 +507,218 @@ skill_prose: |
   the return type; reach for `typing`/`collections.abc` (`Sequence`, `Mapping`,
   `Optional`, `Iterable`) for containers. Local throwaway scripts can stay loose, but
   anything reused or shared benefits from explicit types.
+---
+id: compare-not-none
+language: python
+title: "Use `is not None` instead of `!= None`"
+why: "None is a singleton; identity comparison is correct, faster, and idiomatic. This is the `!=` companion to `compare-none`."
+severity: warn
+fix_policy: autofix
+rule:
+  all:
+    - pattern: "$X != None"
+    # Guard: do not match inside a chained comparison like `a != None != b`,
+    # which ast-grep would corrupt by dropping the trailing operand.
+    - not:
+        pattern: "$A != None != $B"
+fix: "$X is not None"
+skill_prose: |
+  Compare with `is not None`, never `!= None`. `None` is a singleton, so identity is
+  what you mean, and `!=` can be overridden by `__ne__`.
+examples:
+  bad: "if x != None:\n    pass"
+  good: "if x is not None:\n    pass"
+---
+id: range-start-zero
+language: python
+title: "Drop the redundant `0` start in `range(0, n)`"
+why: "`range` already starts at 0, so `range(0, n)` and `range(n)` are identical; the explicit `0` is noise."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "range(0, $N)"
+fix: "range($N)"
+skill_prose: |
+  Write `range(n)` rather than `range(0, n)` — the start defaults to 0. (Keep the
+  explicit start when it's non-zero, like `range(1, n)`, or when a step is present.)
+examples:
+  bad: "for i in range(0, n):\n    pass"
+  good: "for i in range(n):\n    pass"
+---
+id: in-dict-keys
+language: python
+title: "Test membership against a dict directly, not `.keys()`"
+why: "`key in d` already checks the dict's keys, so `key in d.keys()` builds a needless keys view. They're exactly equivalent for membership."
+severity: warn
+fix_policy: autofix
+rule:
+  pattern: "$K in $D.keys()"
+fix: "$K in $D"
+skill_prose: |
+  Check key membership with `key in d`, not `key in d.keys()`. Membership on a dict
+  tests its keys, so `.keys()` only adds an intermediate view object.
+examples:
+  bad: "if k in d.keys():\n    pass"
+  good: "if k in d:\n    pass"
+---
+id: len-nonzero
+language: python
+title: "Use truthiness instead of `len(x) != 0`"
+why: "Non-empty containers are truthy, so `if x:` is the idiom for non-emptiness; `len(x) != 0` / `len(x) > 0` is more to read and computes a length you don't need. The rewrite isn't always behavior-identical (numpy, len-less iterables), so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "len($X) != 0"
+    - pattern: "len($X) > 0"
+    - pattern: "0 != len($X)"
+skill_prose: |
+  Test a container for non-emptiness with its truthiness — `if items:` — rather than
+  `len(items) != 0` or `len(items) > 0`. Non-empty sequences and mappings are truthy.
+  (Stick with explicit `len(...)` when the object overrides truthiness surprisingly,
+  e.g. numpy arrays.)
+examples:
+  bad: "if len(items) != 0:\n    pass"
+  good: "if items:\n    pass"
+---
+id: redundant-get-none
+language: python
+title: "Drop the redundant `None` default in `dict.get`"
+why: "`dict.get(key)` already returns `None` when the key is missing, so `dict.get(key, None)` is redundant. Taught rather than autofixed because `.get` on a non-dict object could define a different default."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$D.get($K, None)"
+skill_prose: |
+  Write `d.get(key)` instead of `d.get(key, None)` — the default is already `None`.
+  (Keep an explicit default when it's a real value, like `d.get(key, 0)`.)
+examples:
+  bad: "value = cfg.get(key, None)"
+  good: "value = cfg.get(key)"
+---
+id: dangerous-eval-exec
+language: python
+title: "Avoid `eval`/`exec` on dynamic input"
+why: "`eval`/`exec` run arbitrary code from a string — a remote-code-execution risk the moment any part is influenced by input — and defeat tooling. There is no mechanical replacement; the data flow must be redesigned."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "eval($$$ARGS)"
+    - pattern: "exec($$$ARGS)"
+skill_prose: |
+  Don't use `eval`/`exec`. Executing a string as code is an injection hazard whenever
+  any part of it comes from input, and it blocks static analysis. Parse data with
+  `ast.literal_eval`, `json.loads`, or `int()`/`float()`; dispatch on a `dict` of
+  callables; or restructure so no dynamic code is needed.
+examples:
+  bad: "result = eval(user_input)"
+  good: "result = ast.literal_eval(user_input)"
+---
+id: boolean-return-direct
+language: python
+title: "Return the condition directly instead of `if cond: return True`"
+why: "`if cond:\\n    return True\\nreturn False` is a verbose way to write `return bool(cond)`; returning the boolean expression is clearer. Whether the value is already a bool is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function's body is `if cond: return True` followed by `return False`, just
+  `return cond` (or `return bool(cond)` if `cond` isn't already a boolean). The same
+  applies to assigning a flag: `flag = bool(cond)` rather than an `if`/`else` that sets
+  `True`/`False`.
+---
+id: prefer-any-builtin
+language: python
+title: "Use `any()` instead of a loop that sets a found flag"
+why: "`any(pred(x) for x in xs)` expresses 'does anything match?' in one short-circuiting expression; a loop with a `found = True; break` flag is more code for the same thing. Not every such loop should collapse, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Replace a 'set a flag in a loop' existence check with `any(...)`:
+  `if any(item.active for item in items):` instead of looping with
+  `found = False ... found = True; break`. `any` short-circuits on the first match and
+  reads as the question it answers. Use a generator expression so it stays lazy.
+---
+id: prefer-all-builtin
+language: python
+title: "Use `all()` to check every element satisfies a condition"
+why: "`all(pred(x) for x in xs)` says 'do all match?' in one short-circuiting expression; a loop that returns `False` on the first failure is more verbose. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Express 'every element satisfies P' with `all(pred(x) for x in xs)` rather than a
+  loop that returns/sets `False` on the first counterexample. Like `any`, it
+  short-circuits and reads declaratively. (Recall `all([])` is `True` and `any([])` is
+  `False` — usually what you want, but worth a thought on empty input.)
+---
+id: prefer-sum-builtin
+language: python
+title: "Use `sum()` instead of an accumulation loop"
+why: "`sum(values)` (or `sum(f(x) for x in xs)`) replaces a `total = 0; for ...: total += x` loop with one expression. Not every accumulation fits, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Add up a sequence with `sum(values)` or `sum(x.amount for x in items)` instead of an
+  explicit `total = 0` loop. It's one expression and signals intent. Pass a start value
+  for non-zero/typed accumulators (`sum(amounts, Decimal(0))`). For products or other
+  reductions, reach for `math.prod` or `functools.reduce`.
+---
+id: prefer-min-max-builtin
+language: python
+title: "Use `min`/`max` (with `key=`) instead of a tracking loop"
+why: "`max(items, key=score)` finds the extreme in one call; a loop that tracks the best-so-far is more code and easy to get wrong on the first/empty element. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Find an extreme with `min`/`max` and a `key` function — `max(users, key=lambda u:
+  u.score)` — rather than a manual `best = None ...` loop. Pass `default=` to handle an
+  empty iterable without a `ValueError`. Use the bare form (`max(values)`) for plain
+  comparisons.
+---
+id: prefer-walrus-operator
+language: python
+title: "Use the walrus operator to avoid recomputing or pre-assigning"
+why: "`if (n := len(data)) > 10:` binds and tests in one place, avoiding a separate assignment line or a recomputation. Where it improves clarity is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Use `:=` to capture a value where you test or use it — `while (chunk := f.read(8192)):`,
+  `if (m := pattern.match(s)) is not None:` — instead of assigning on a prior line or
+  calling twice. Keep it for cases that genuinely read clearer; don't cram complex
+  assignments into conditions where a plain statement is plainer.
+---
+id: prefer-match-statement
+language: python
+title: "Use `match` for structural / multi-way dispatch"
+why: "`match` (3.10+) destructures and dispatches on shape in a way a long `if`/`elif` chain or nested `isinstance` checks can't express cleanly. Whether it fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Reach for `match`/`case` when branching on the structure or type of a value —
+  destructuring tuples/dataclasses, handling several node kinds — where it's clearer than
+  a chain of `elif`/`isinstance`. For simple equality dispatch a `dict` lookup is often
+  still better; use `match` for its pattern-binding power.
+---
+id: prefer-conditional-expression
+language: python
+title: "Use a conditional expression for simple either/or assignment"
+why: "`x = a if cond else b` assigns in one line where a four-line `if`/`else` block only sets one variable. Whether it's clearer than the block is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When an `if`/`else` exists only to assign one variable to one of two values, use a
+  conditional expression: `label = "on" if active else "off"`. It keeps the assignment in
+  one place. Keep the block form when either branch does more than assign, or when the
+  expression would get long and hard to read.
+---
+id: avoid-global-statement
+language: python
+title: "Avoid mutating module globals with the `global` statement"
+why: "`global` reaches out to rebind module-level state from inside a function, creating hidden coupling and test-order dependence. Passing state or returning values is clearer. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Avoid the `global` statement to mutate module-level variables from within functions.
+  It hides data flow, makes functions non-reentrant, and couples tests through shared
+  state. Pass the value in and return the new one, or encapsulate the state in a class /
+  small object. Module-level constants you only read are fine — it's rebinding that hurts.

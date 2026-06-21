@@ -1283,3 +1283,329 @@ skill_prose: |
   *store* a real boolean (a `-> bool` function, a serialized flag), coerce explicitly with
   `bool(x)` rather than returning the underlying list/int/None. It keeps the declared type
   honest and avoids surprising callers with a non-bool 'boolean'.
+---
+id: compare-empty-collection
+language: python
+title: "Use truthiness instead of comparing to an empty collection"
+why: "Empty containers are falsy, so `if not x:` is the idiom; `x == []` / `x == {}` / `x == ()` builds an empty literal to compare against and is more to read. The rewrite isn't always behavior-identical (e.g. distinguishing `[]` from `None`), so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  any:
+    - pattern: "$X == []"
+    - pattern: "$X == {}"
+    - pattern: "$X == ()"
+skill_prose: |
+  Test for emptiness with truthiness — `if not items:` — rather than `items == []` /
+  `== {}` / `== ()`. Empty sequences, mappings, and sets are falsy. (Keep the explicit
+  comparison only when you must distinguish an empty container from `None` or another
+  falsy value, where `if not x:` would conflate them.)
+examples:
+  bad: "if items == []:\n    pass"
+  good: "if not items:\n    pass"
+---
+id: no-double-negation
+language: python
+title: "Use `bool(x)` instead of `not not x`"
+why: "`not not x` is a roundabout way to coerce to a boolean; `bool(x)` says it directly and is exactly equivalent."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "not not $X"
+fix: "bool($X)"
+skill_prose: |
+  Coerce to a boolean with `bool(x)`, not the `not not x` double-negation trick. And in
+  a plain `if`/`while`, you usually don't need either — bare `if x:` already tests truthiness.
+examples:
+  bad: "flag = not not value"
+  good: "flag = bool(value)"
+---
+id: prefer-pathlib
+language: python
+title: "Use `pathlib.Path` instead of `os.path`"
+why: "`pathlib` models paths as objects with readable operators and methods (`/`, `.name`, `.exists()`), replacing nested `os.path.join`/`os.path.basename` calls on strings. A modernization judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Manipulate filesystem paths with `pathlib.Path` rather than `os.path` string functions.
+  `Path(base) / \"sub\" / name` replaces `os.path.join(base, \"sub\", name)`, and you get
+  `.name`, `.suffix`, `.parent`, `.exists()`, `.glob()` as methods. It's clearer and
+  cross-platform. (The `os.path` functions still accept `Path` objects at boundaries.)
+---
+id: prefer-pathlib-io
+language: python
+title: "Read/write whole files with `Path.read_text`/`write_text`"
+why: "`Path(p).read_text(encoding=\"utf-8\")` reads an entire file in one expression; an explicit `with open(...) as f: f.read()` is more ceremony for the common whole-file case. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For whole-file reads/writes, use `Path(p).read_text(encoding=\"utf-8\")`,
+  `write_text`, `read_bytes`, and `write_bytes` instead of an explicit `open`/`read`
+  block. They handle opening and closing for you. Keep an explicit `with open(...)` when
+  you stream line by line or need a file object across several operations.
+---
+id: prefer-explicit-encoding
+language: python
+title: "Pass an explicit `encoding=` when opening text files"
+why: "Without `encoding=`, `open` uses a platform-dependent default (often not UTF-8 on Windows), so the same code reads different bytes on different machines. A portability rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Always pass `encoding=` when opening a file in text mode: `open(path, encoding=\"utf-8\")`
+  / `Path(path).read_text(encoding=\"utf-8\")`. The default locale encoding varies by OS,
+  so omitting it makes behavior machine-dependent and produces mojibake or `UnicodeDecodeError`
+  in the wrong environment. Use binary mode (`\"rb\"`) when you don't want decoding at all.
+---
+id: prefer-os-environ-get
+language: python
+title: "Read environment variables with a validated default"
+why: "`os.environ[\"X\"]` raises `KeyError` for a missing variable; `os.environ.get(\"X\", default)` (or explicit validation) handles absence deliberately. How to handle a missing var is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Read configuration from the environment with `os.environ.get(\"PORT\", \"8080\")` (or
+  `os.getenv`) so a missing variable has a defined default, and coerce/validate the value
+  (`int(...)`, a schema) once at startup. Use `os.environ[\"X\"]` only when the variable is
+  genuinely required and you want a loud failure. Never hard-code secrets — read them here.
+---
+id: prefer-subprocess-run
+language: python
+title: "Run external commands with `subprocess.run`, not `os.system`"
+why: "`subprocess.run([...], check=True)` takes an argument list (no shell injection), captures output, and reports failures; `os.system` runs a shell string and only returns an exit code. A safety/clarity rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Invoke external programs with `subprocess.run([\"git\", \"status\"], check=True,
+  capture_output=True, text=True)` rather than `os.system(\"git status\")`. Passing an
+  argument *list* avoids shell-injection and quoting bugs, `check=True` raises on failure,
+  and you can capture stdout/stderr. Avoid `shell=True` with interpolated input.
+---
+id: prefer-secrets-for-tokens
+language: python
+title: "Generate tokens with `secrets`, not `random`"
+why: "`random` is a deterministic PRNG seeded from predictable state, so it's unsafe for passwords, tokens, or keys; `secrets` is cryptographically secure. A security rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Use the `secrets` module for anything security-sensitive — `secrets.token_urlsafe(32)`,
+  `secrets.choice(...)`, `secrets.token_hex()`. The `random` module is a fast deterministic
+  PRNG meant for simulations and is predictable enough to break security. Keep `random`
+  for non-security randomness like sampling and shuffling test data.
+---
+id: prefer-timezone-aware-datetime
+language: python
+title: "Work with timezone-aware datetimes"
+why: "Naive `datetime.now()` / `utcnow()` carry no timezone, so comparisons and storage silently assume a zone and break across DST and machines. Aware datetimes (`datetime.now(tz=...)`) are unambiguous. A correctness rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Create timezone-aware datetimes: `datetime.now(timezone.utc)` rather than the naive
+  `datetime.now()` or the deprecated `datetime.utcnow()`. Store and compute in UTC and
+  convert to local only for display. Naive datetimes lead to off-by-hours bugs and
+  ambiguous comparisons; an aware datetime states the zone explicitly.
+---
+id: prefer-module-logger
+language: python
+title: "Use a module-level `logging.getLogger(__name__)`"
+why: "Getting a logger named for the module (`logger = logging.getLogger(__name__)`) lets output be filtered and configured per package; calling the root `logging.info(...)` or `print` gives no such control. A practice rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Define `logger = logging.getLogger(__name__)` once at module top and log through it.
+  The `__name__`-based name slots into the logging hierarchy so handlers and levels can be
+  configured per package, and records carry the source module. Don't call `logging.info`
+  on the root logger directly, and configure handlers/levels in one place at app startup
+  (libraries should add a `NullHandler` and not configure).
+---
+id: prefer-tempfile
+language: python
+title: "Create temporary files/dirs with `tempfile`"
+why: "`tempfile.NamedTemporaryFile`/`TemporaryDirectory` create securely-named temporaries and clean them up; hand-built paths like `/tmp/myfile` collide, leak, and are a security risk. A safety rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Make temporary files and directories with the `tempfile` module —
+  `with tempfile.TemporaryDirectory() as d:` or `NamedTemporaryFile` — rather than
+  constructing `/tmp/...` paths yourself. It picks a collision-free, permission-safe name
+  and removes it on exit. Manual temp paths race, leak, and invite symlink attacks.
+---
+id: prefer-contextmanager-decorator
+language: python
+title: "Write context managers with `@contextlib.contextmanager`"
+why: "For setup/teardown around a block, a generator decorated with `@contextmanager` is far less code than a class with `__enter__`/`__exit__`. Whether the case fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Implement a simple context manager as a generator: decorate a function with
+  `@contextlib.contextmanager`, `yield` the resource between setup and teardown, and put
+  teardown in a `finally`. It's much shorter than a full `__enter__`/`__exit__` class.
+  Reach for the class form when the manager holds substantial state or is reused as a type.
+---
+id: prefer-multiple-context-managers
+language: python
+title: "Combine context managers in one `with` statement"
+why: "`with open(a) as fa, open(b) as fb:` manages both resources without nesting; stacking separate `with` blocks adds indentation for no benefit. A small style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Open several resources in a single `with` — `with open(src) as fin, open(dst, \"w\") as
+  fout:` (or parenthesized across lines in 3.10+) — instead of nesting one `with` inside
+  another. For a dynamic number of managers, use `contextlib.ExitStack`.
+---
+id: prefer-main-guard
+language: python
+title: "Guard script entry points with `if __name__ == \"__main__\"`"
+why: "Code at module top level runs on import, so a script's entry logic must sit under `if __name__ == \"__main__\":` to avoid executing when the module is imported. A structural rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Put a module's run-when-executed logic under `if __name__ == \"__main__\":`, typically
+  calling a `main()` function. Without the guard, that code fires whenever the module is
+  imported (by tests, tooling, or another module), causing surprising side effects. Keep
+  definitions at top level and only the invocation inside the guard.
+---
+id: avoid-shadowing-builtins
+language: python
+title: "Don't shadow built-in names"
+why: "Naming a variable `list`, `dict`, `id`, `type`, `str`, or `input` rebinds the built-in within that scope, so later code that needs the original silently breaks. A naming rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Avoid using built-in names — `list`, `dict`, `set`, `id`, `type`, `str`, `input`,
+  `filter`, `sum` — as variable or parameter names. Shadowing them hides the built-in for
+  the rest of the scope, leading to baffling errors when you later call `list(...)`.
+  Pick a specific name (`items`, `user_id`, `text`) or append an underscore (`type_`).
+---
+id: prefer-absolute-imports
+language: python
+title: "Prefer absolute imports over implicit relative ones"
+why: "Absolute imports (`from mypkg.utils import x`) are unambiguous and work regardless of how a module is run; deep or implicit relative imports are fragile and confusing. A style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Import with absolute paths rooted at your package — `from mypkg.core import load` — so
+  the source is unambiguous and refactors are mechanical. Explicit relative imports
+  (`from .sibling import x`) are fine for tightly-coupled intra-package references; avoid
+  reaching across many `..` levels, which signals a layering problem.
+---
+id: document-with-docstrings
+language: python
+title: "Document modules, classes, and public functions with docstrings"
+why: "A docstring is introspectable at runtime (`help()`, IDEs, doc tools) in a way a comment is not, and it states the contract for callers. Where docs add value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give modules, public classes, and public functions a docstring describing purpose,
+  parameters, return value, and raised exceptions — `\"\"\"Parse a config file and return
+  Settings.\"\"\"`. Unlike comments, docstrings are reachable via `help()`, hovers, and
+  documentation generators. Skip them for obvious private helpers; spend the words on
+  public contracts and anything non-obvious.
+---
+id: comments-explain-why-py
+language: python
+title: "Write comments that explain *why*, not *what*"
+why: "A comment restating the code rots and adds noise; one capturing intent, a workaround's reason, or a non-obvious constraint is durable value. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Comment the *why* — the reason for a workaround, a link to the issue it fixes, an
+  invariant that isn't obvious — not the *what* the code already says. `x += 1  # add one`
+  is noise; `# API pages are 1-based` earns its place. If you're tempted to explain *what*,
+  prefer a clearer name or a small refactor so the code speaks for itself.
+---
+id: avoid-magic-numbers-py
+language: python
+title: "Name magic numbers as constants"
+why: "A bare literal like `86400` buried in an expression hides its meaning; a named `SECONDS_PER_DAY` documents intent and centralizes the value. Which literals deserve names is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give meaningful numeric literals a name: `MAX_RETRIES = 3`, `SECONDS_PER_DAY = 86_400`.
+  The name explains what the number means and gives one place to change it. The obvious
+  ones — `0`, `1`, `-1` — stay inline; promote a number to a constant once it carries
+  domain meaning or repeats.
+---
+id: fail-fast-py
+language: python
+title: "Validate inputs and fail fast"
+why: "Checking preconditions at the top of a function and raising immediately surfaces bad input where it enters, instead of letting it corrupt state and fail confusingly later. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Validate arguments and preconditions at the start of a function and raise immediately on
+  violation (`if amount < 0: raise ValueError(...)`). Failing fast at the boundary gives a
+  clear, local error instead of a corrupted value that explodes layers deeper. Pair with
+  guard clauses so the happy path follows the checks.
+---
+id: prefer-dependency-injection-py
+language: python
+title: "Inject dependencies instead of hard-coding them"
+why: "A function that constructs its own database connection, clock, or HTTP session is hard to test and rigid; receiving those as parameters makes it swappable and mockable. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Pass collaborators in — a repository, a `Session`, a clock function — rather than
+  creating them or importing a global inside the function. Injected dependencies let tests
+  pass fakes, make coupling explicit in the signature, and let one function serve many
+  contexts. A default argument or constructor parameter is usually enough; you rarely need
+  a DI framework.
+---
+id: avoid-premature-optimization-py
+language: python
+title: "Prefer clarity first; optimize with evidence"
+why: "Micro-optimizing before profiling trades readability for guessed-at gains that often don't matter; clear code plus measurement targets the real hot spots. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write the clear version first, then optimize what a profiler (`cProfile`, `timeit`)
+  proves is hot. Speculative caching, manual loop unrolling, or contorting code for
+  imagined speed usually costs readability for no measurable win — and the real cost is
+  often I/O, not CPU. Make it correct and clear, measure, then optimize with data.
+---
+id: validate-at-boundaries-py
+language: python
+title: "Validate and parse external data at the boundary"
+why: "Data from the network, files, env, or user input is untrusted until validated; parsing it into a typed structure at the edge (dataclass, Pydantic, explicit checks) keeps the core honest. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Parse untrusted input into a known type at the system's edge — with Pydantic, a
+  dataclass plus validation, or explicit checks — before it flows inward. 'Parse, don't
+  validate': downstream code then receives a real `Settings`/`User`, not a raw dict it
+  keeps re-checking. Don't pass unverified `json.loads(...)` results deep into the system.
+---
+id: prefer-self-documenting-fstring-debug
+language: python
+title: "Use `f\"{value=}\"` for debug output"
+why: "The f-string `=` specifier prints both the expression and its value (`f\"{count=}\"` → `count=3`), so debug lines stay correct when you rename or change the expression. A small convenience, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For quick debug logging, use the self-documenting f-string form: `print(f\"{user_id=}\")`
+  emits `user_id=42`, keeping label and value in sync automatically (3.8+). It beats
+  `print(\"user_id =\", user_id)` where the label can drift from the expression. (Prefer the
+  `logging` module over `print` for anything that ships — see `print-debugging`.)
+---
+id: keep-comprehensions-simple
+language: python
+title: "Keep comprehensions readable; don't over-nest"
+why: "A comprehension with multiple `for` clauses, nested conditions, and a complex expression becomes denser than the loop it replaces. When to fall back to a loop is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Comprehensions shine for a single map and/or filter. Once you'd stack several `for`
+  clauses, nested ternaries, or a multi-step expression into one, it's harder to read than
+  an explicit loop — so write the loop, or factor the expression into a named helper the
+  comprehension calls. Favor clarity over compressing everything onto one line.
+---
+id: prefer-functools-cache
+language: python
+title: "Memoize pure functions with `functools.cache`/`lru_cache`"
+why: "`@functools.cache` (or `@lru_cache`) gives a pure function automatic memoization; a hand-rolled module-level dict cache reimplements it with more bugs. Whether caching is correct is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Cache results of an expensive *pure* function with `@functools.cache` (unbounded) or
+  `@functools.lru_cache(maxsize=...)` instead of managing your own dict. It handles keys,
+  eviction, and thread safety. Only memoize functions with no side effects and hashable
+  arguments, and watch memory for unbounded caches with many distinct inputs.

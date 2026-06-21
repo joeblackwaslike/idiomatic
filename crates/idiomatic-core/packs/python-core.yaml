@@ -722,3 +722,268 @@ skill_prose: |
   It hides data flow, makes functions non-reentrant, and couples tests through shared
   state. Pass the value in and return the new one, or encapsulate the state in a class /
   small object. Module-level constants you only read are fine — it's rebinding that hurts.
+---
+id: prefer-list-literal
+language: python
+title: "Use `[]` instead of `list()`"
+why: "The `[]` literal is the idiomatic empty list and is slightly faster than the `list()` constructor call."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "list()"
+fix: "[]"
+skill_prose: |
+  Create an empty list with the literal `[]` rather than `list()`. It's the common
+  idiom and avoids a function call. (Use `list(iterable)` when you're actually
+  converting something.)
+examples:
+  bad: "items = list()"
+  good: "items = []"
+---
+id: prefer-dict-literal
+language: python
+title: "Use `{}` instead of `dict()`"
+why: "The `{}` literal is the idiomatic empty dict and is slightly faster than the `dict()` constructor call."
+severity: info
+fix_policy: autofix
+rule:
+  pattern: "dict()"
+fix: "{}"
+skill_prose: |
+  Create an empty dict with the literal `{}` rather than `dict()`. (Keep `dict(...)`
+  when building from keyword pairs or an iterable of items.)
+examples:
+  bad: "mapping = dict()"
+  good: "mapping = {}"
+---
+id: prefer-set-literal
+language: python
+title: "Use a set literal instead of `set([...])`"
+why: "`{1, 2, 3}` constructs the set directly; `set([1, 2, 3])` builds a throwaway list first. Taught rather than autofixed because the empty case `set([])` can't become `{}` (that's a dict) and a single comprehension argument should become a set comprehension."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "set([$$$ELEMENTS])"
+skill_prose: |
+  Build a non-empty set with a literal — `{1, 2, 3}` — instead of `set([1, 2, 3])`,
+  which allocates a list just to consume it. For the empty set keep `set()` (since `{}`
+  is a dict), and turn `set([x for x in xs])` into a set comprehension `{x for x in xs}`.
+examples:
+  bad: "s = set([1, 2, 3])"
+  good: "s = {1, 2, 3}"
+---
+id: prefer-in-comparison
+language: python
+title: "Use `in` instead of chained `== ... or ==`"
+why: "`x in (a, b, c)` tests membership against several values in one expression; `x == a or x == b or x == c` repeats the subject. The membership form reads better and evaluates `x` once."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X == $A or $X == $B"
+skill_prose: |
+  Collapse `x == a or x == b` into `x in (a, b)`. The membership test names the subject
+  once and extends naturally to more values. (Use a `set` literal `{a, b}` for large,
+  hashable option lists to get O(1) checks.)
+examples:
+  bad: "if x == 1 or x == 2:\n    pass"
+  good: "if x in (1, 2):\n    pass"
+---
+id: prefer-not-in-comparison
+language: python
+title: "Use `not in` instead of chained `!= ... and !=`"
+why: "`x not in (a, b)` tests non-membership in one expression; `x != a and x != b` repeats the subject. The membership form reads better and evaluates `x` once."
+severity: info
+fix_policy: warn-and-instruct
+rule:
+  pattern: "$X != $A and $X != $B"
+skill_prose: |
+  Collapse `x != a and x != b` into `x not in (a, b)`. It names the subject once and
+  extends to more values. (Use a `set` literal for large hashable option lists.)
+examples:
+  bad: "if x != 1 and x != 2:\n    pass"
+  good: "if x not in (1, 2):\n    pass"
+---
+id: prefer-zip-over-index
+language: python
+title: "Iterate parallel sequences with `zip`"
+why: "`for a, b in zip(xs, ys)` pairs elements directly; indexing both with `for i in range(len(xs)): xs[i], ys[i]` is noisier and error-prone. Whether the sequences align is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Walk several sequences together with `zip`: `for name, score in zip(names, scores):`
+  instead of indexing each by a shared `i`. It stops at the shortest input by default;
+  pass `strict=True` (3.10+) to require equal lengths, or `itertools.zip_longest` to pad.
+---
+id: prefer-str-join
+language: python
+title: "Build strings with `str.join`, not `+=` in a loop"
+why: "`\"\".join(parts)` builds the result in one pass; repeated `s += piece` in a loop creates a new string each iteration (quadratic in total length). A judgment call about loop shape, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Assemble a string from pieces with `\"\".join(parts)` (or `\", \".join(...)`) rather
+  than accumulating with `result += piece` in a loop. `join` makes one pass and one
+  allocation, while repeated concatenation is O(n²) in the total length. Collect the
+  pieces (a list or generator) and join once.
+---
+id: prefer-removeprefix-suffix
+language: python
+title: "Strip fixed prefixes/suffixes with `removeprefix`/`removesuffix`"
+why: "`s.removeprefix(p)` (3.9+) removes a known prefix only if present; the old `s[len(p):]` slice strips blindly and corrupts the string when the prefix is absent. A correctness improvement, taught because the slice may be intentional."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Remove a known prefix or suffix with `s.removeprefix(\"www.\")` / `s.removesuffix(\".txt\")`
+  rather than `s[len(prefix):]` or `s[:-len(suffix)]`. The methods only strip when the
+  affix is actually there, avoiding the classic bug where the slice mangles strings that
+  don't start/end with it. (Don't confuse with `strip`, which removes a *set of characters*.)
+---
+id: prefer-defaultdict
+language: python
+title: "Use `collections.defaultdict` for accumulating into a dict"
+why: "`defaultdict(list)` auto-creates the missing value, removing the `if k not in d: d[k] = []` boilerplate before every append. Where it fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When grouping or accumulating into a dict, use `collections.defaultdict(list)` (or
+  `set`, `int`, ...) so `d[key].append(x)` just works without a presence check. For a
+  read-mostly dict, `d.setdefault(key, []).append(x)` is the inline alternative. Convert
+  back to a plain `dict` at the boundary if a caller shouldn't see the defaulting behavior.
+---
+id: prefer-counter
+language: python
+title: "Count occurrences with `collections.Counter`"
+why: "`Counter(items)` tallies frequencies in one call and offers `.most_common()`; a hand-rolled `counts[x] = counts.get(x, 0) + 1` loop reimplements it. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Tally frequencies with `collections.Counter(items)` instead of a manual count loop or
+  `dict.get(x, 0) + 1`. It gives you `.most_common(n)`, arithmetic between counters, and
+  clear intent. Reach for it whenever you're counting how often things occur.
+---
+id: prefer-setdefault
+language: python
+title: "Use `dict.setdefault` to initialize-and-get in one step"
+why: "`d.setdefault(key, []).append(x)` looks up once and inserts the default if missing; the `if key not in d: d[key] = []` then `d[key].append(x)` pattern hashes twice and is wordier. A judgment call (or use `defaultdict`), so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For occasional grouping into a plain dict, `d.setdefault(key, []).append(x)` inserts the
+  default only when the key is absent and returns the stored value — one lookup, no
+  presence check. When the whole dict accumulates this way, a `defaultdict` is cleaner;
+  `setdefault` shines for a one-off on an otherwise-normal dict.
+---
+id: prefer-dict-merge-operator
+language: python
+title: "Merge dicts with `|` or `{**a, **b}`"
+why: "`a | b` (3.9+) and `{**a, **b}` build a merged dict in one expression; a copy-then-`update` loop is more code. A small style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Combine dicts with the union operator `merged = a | b` (3.9+) or `{**a, **b}` rather
+  than `merged = dict(a); merged.update(b)`. Use `a |= b` to merge in place. Later
+  operands win on key conflicts, same as `update`.
+---
+id: prefer-dict-items
+language: python
+title: "Iterate `dict.items()` when you need keys and values"
+why: "`for key, value in d.items()` yields both at once; iterating keys and re-indexing `d[key]` in the body does a redundant lookup each iteration. Whether you need the value is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a loop needs both key and value, iterate `for key, value in d.items():` instead of
+  `for key in d:` followed by `d[key]`. It hands you both and skips the repeated lookup.
+  Use plain `for key in d:` when you only need keys and `d.values()` when you only need values.
+---
+id: prefer-fstring-over-percent
+language: python
+title: "Use f-strings instead of `%`-formatting"
+why: "`f\"{name}\"` keeps each value next to its placeholder; `\"%s\" % name` separates template from data and is easy to get wrong (tuple vs single arg). A style judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Prefer f-strings over `%`-formatting: `f\"{count} items for {user}\"` instead of
+  `\"%d items for %s\" % (count, user)`. The f-string keeps values inline and avoids the
+  single-value-vs-tuple footgun of `%`. (Logging is the deliberate exception — pass
+  `logger.info(\"%s done\", name)` so the format only runs when the message is emitted.)
+---
+id: prefer-generator-expression
+language: python
+title: "Use a generator expression for large or short-circuited pipelines"
+why: "A generator `(f(x) for x in xs)` streams items lazily instead of materializing a whole list; for big inputs or `any`/`sum`/`next` consumers that's less memory and can stop early. When laziness helps is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Feed `sum`, `any`, `all`, `max`, `min`, and `next` with a generator expression —
+  `sum(x.size for x in files)` — and drop the surrounding `[...]`: it avoids building a
+  throwaway list and can short-circuit. For large or streamed data, prefer generators
+  over list comprehensions; materialize to a list only when you need to index or reuse it.
+---
+id: prefer-itertools
+language: python
+title: "Use `itertools` for common iteration patterns"
+why: "`itertools` provides tested, lazy building blocks — `chain`, `islice`, `groupby`, `pairwise`, `product` — that replace fiddly manual index/loop code. Where they fit is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Reach for `itertools` instead of hand-rolling iteration: `chain(a, b)` to concatenate
+  iterables lazily, `islice` to take/skip without slicing a list, `pairwise(xs)` for
+  adjacent pairs, `groupby` for runs, `product`/`combinations` for nested loops. They're
+  lazy, correct, and communicate intent.
+---
+id: prefer-tuple-unpacking
+language: python
+title: "Unpack tuples/sequences instead of indexing"
+why: "`x, y = point` names the parts; `x = point[0]; y = point[1]` repeats the subject and hides what the indices mean. A small readability judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Destructure with assignment unpacking — `name, age = record`, `first, *rest = items`,
+  `for key, value in pairs:` — rather than pulling elements out by numeric index. It names
+  each part and documents the expected shape. Starred targets capture the remainder.
+---
+id: prefer-sorted-key
+language: python
+title: "Sort with a `key` function, not a comparator or decorate-sort-undecorate"
+why: "`sorted(items, key=attrgetter(\"score\"))` sorts by a derived value cleanly; building `(key, item)` tuples to sort or writing a `cmp` function is more code. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Sort by a derived value with the `key=` parameter — `sorted(users, key=lambda u:
+  u.age)` or `key=operator.attrgetter(\"age\")` — rather than the old decorate-sort-undecorate
+  tuple trick or a `functools.cmp_to_key` comparator. `key` is evaluated once per element
+  and reads as 'sort by this'. Add `reverse=True` for descending.
+---
+id: prefer-reversed
+language: python
+title: "Iterate backwards with `reversed`, not a negative-step slice"
+why: "`reversed(xs)` yields items back-to-front lazily and reads clearly; `xs[::-1]` builds a full reversed copy just to loop over it. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  To iterate in reverse, use `for x in reversed(items):` instead of `for x in items[::-1]:`.
+  `reversed` is lazy and states intent, while the `[::-1]` slice allocates a reversed copy.
+  (Keep the slice when you actually want a new reversed list/string as a value.)
+---
+id: prefer-extend-over-append-loop
+language: python
+title: "Use `list.extend` instead of appending in a loop"
+why: "`dst.extend(src)` adds every item in one call; `for x in src: dst.append(x)` is a loop for the same effect. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Append many items at once with `dst.extend(src)` (or `dst += src`) rather than a
+  `for`-loop of `dst.append(x)`. It's one call and clearer. Use a list comprehension or
+  `extend(f(x) for x in src)` when each item is transformed first.
+---
+id: prefer-set-operations
+language: python
+title: "Use set operations for membership math"
+why: "Intersections, unions, and differences expressed with `&`, `|`, `-` on sets are concise and fast; reimplementing them with loops and membership checks is slower and noisier. A judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Compute overlaps and differences with set algebra — `common = set(a) & set(b)`,
+  `only_in_a = set(a) - set(b)`, `union = set(a) | set(b)` — instead of looping with `if x
+  in b` checks. It's O(n) with hashing and reads as the set relationship it is. Use
+  `frozenset` for hashable, immutable sets.

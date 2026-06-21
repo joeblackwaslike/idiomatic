@@ -512,6 +512,10 @@ rule:
     - pattern: "$X !== NaN"
     - pattern: "NaN === $X"
     - pattern: "NaN !== $X"
+    - pattern: "$X == NaN"
+    - pattern: "$X != NaN"
+    - pattern: "NaN == $X"
+    - pattern: "NaN != $X"
 skill_prose: |
   Never compare against `NaN` with `===`/`!==`: by IEEE-754 `NaN` is unequal to
   everything, so `x === NaN` is permanently false. Detect it with `Number.isNaN(x)`.
@@ -612,7 +616,7 @@ why: "`obj?.run()` is shorter and clearer than `obj && obj.run()`, and avoids th
 severity: warn
 fix_policy: warn-and-instruct
 rule:
-  pattern: "$A && $A.$M()"
+  pattern: "$A && $A.$M($$$ARGS)"
 skill_prose: |
   Guard a method call with optional chaining — `obj?.run()` — instead of
   `obj && obj.run()`. It expresses 'call only if present' directly and skips the
@@ -732,16 +736,19 @@ skill_prose: |
 id: prefer-not-includes
 language: typescript
 title: "Use `!arr.includes(x)` instead of `.indexOf(x) === -1`"
-why: "`!arr.includes(x)` states the absence test directly; `.indexOf(x) === -1` is the pre-ES2015 idiom and is easy to get wrong. The only divergence — `includes` finds `NaN` — affects a test that was already always-false, so correct code is unchanged."
+why: "`!arr.includes(x)` states the absence test directly; `.indexOf(x) === -1` (or `< 0`) is the pre-ES2015 idiom and is easy to get wrong. Taught rather than autofixed because `includes` and `indexOf` diverge on sparse-array holes and `NaN`, so a blind rewrite isn't guaranteed equivalent."
 severity: warn
-fix_policy: autofix
+fix_policy: warn-and-instruct
 rule:
-  pattern: "$A.indexOf($X) === -1"
-fix: "!$A.includes($X)"
+  any:
+    - pattern: "$A.indexOf($X) === -1"
+    - pattern: "$A.indexOf($X) == -1"
+    - pattern: "$A.indexOf($X) < 0"
 skill_prose: |
-  Test for absence with `!arr.includes(x)` rather than `arr.indexOf(x) === -1`. It
-  reads as the boolean it is and avoids comparing an index. (See `prefer-includes`
-  for the `!== -1` form and the `NaN` edge case — both are equivalent for working code.)
+  Test for absence with `!arr.includes(x)` rather than `arr.indexOf(x) === -1` / `< 0`.
+  It reads as the boolean it is and avoids comparing an index. (Taught, not autofixed:
+  `includes` matches `NaN` and treats sparse-array holes as `undefined` where `indexOf`
+  does neither, so rewrite deliberately for arrays that may be sparse or hold `NaN`.)
 examples:
   bad: "const no = arr.indexOf(x) === -1;"
   good: "const no = !arr.includes(x);"
@@ -1096,6 +1103,8 @@ rule:
   any:
     - pattern: "$RE.exec($S) !== null"
     - pattern: "$RE.exec($S) != null"
+    - pattern: "$S.match($RE) !== null"
+    - pattern: "$S.match($RE) != null"
 skill_prose: |
   To test whether a pattern matches, use `regex.test(str)` rather than
   `regex.exec(str) !== null`. `test` returns the boolean you want without building a

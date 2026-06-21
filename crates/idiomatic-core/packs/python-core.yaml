@@ -995,7 +995,9 @@ why: "`raise Exception(...)` forces callers to catch the overly-broad `Exception
 severity: warn
 fix_policy: warn-and-instruct
 rule:
-  pattern: "raise Exception($$$ARGS)"
+  any:
+    - pattern: "raise Exception($$$ARGS)"
+    - pattern: "raise Exception"
 skill_prose: |
   Raise a specific exception type rather than the base `Exception`. Use a fitting
   built-in (`ValueError`, `TypeError`, `KeyError`, `RuntimeError`) or define a custom
@@ -1295,11 +1297,14 @@ rule:
     - pattern: "$X == []"
     - pattern: "$X == {}"
     - pattern: "$X == ()"
+    - pattern: "$X != []"
+    - pattern: "$X != {}"
+    - pattern: "$X != ()"
 skill_prose: |
-  Test for emptiness with truthiness — `if not items:` — rather than `items == []` /
-  `== {}` / `== ()`. Empty sequences, mappings, and sets are falsy. (Keep the explicit
-  comparison only when you must distinguish an empty container from `None` or another
-  falsy value, where `if not x:` would conflate them.)
+  Test for emptiness with truthiness — `if not items:` (or `if items:` for the `!=`
+  form) — rather than `items == []` / `!= {}` / `== ()`. Empty sequences, mappings, and
+  sets are falsy. (Keep the explicit comparison only when you must distinguish an empty
+  container from `None` or another falsy value, where `if not x:` would conflate them.)
 examples:
   bad: "if items == []:\n    pass"
   good: "if not items:\n    pass"

@@ -987,3 +987,299 @@ skill_prose: |
   `only_in_a = set(a) - set(b)`, `union = set(a) | set(b)` — instead of looping with `if x
   in b` checks. It's O(n) with hashing and reads as the set relationship it is. Use
   `frozenset` for hashable, immutable sets.
+---
+id: bare-raise-exception
+language: python
+title: "Raise a specific exception, not bare `Exception`"
+why: "`raise Exception(...)` forces callers to catch the overly-broad `Exception` (or bare-except), so they can't distinguish your error from any other. A built-in or custom subclass lets them handle it precisely. The right type is a judgment call, so it's taught."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "raise Exception($$$ARGS)"
+skill_prose: |
+  Raise a specific exception type rather than the base `Exception`. Use a fitting
+  built-in (`ValueError`, `TypeError`, `KeyError`, `RuntimeError`) or define a custom
+  subclass, so callers can `except` exactly your error instead of catching everything.
+examples:
+  bad: "raise Exception(\"invalid config\")"
+  good: "raise ValueError(\"invalid config\")"
+---
+id: raise-notimplemented
+language: python
+title: "Raise `NotImplementedError`, not `NotImplemented`"
+why: "`NotImplemented` is a special singleton for rich-comparison/`__eq__` protocols; raising it gives a confusing `TypeError: exceptions must derive from BaseException`. The intended marker for unfinished methods is `NotImplementedError`."
+severity: warn
+fix_policy: warn-and-instruct
+rule:
+  pattern: "raise NotImplemented"
+skill_prose: |
+  To mark an abstract or unfinished method, `raise NotImplementedError`. `NotImplemented`
+  is a different object — the sentinel returned by `__eq__`/`__lt__` to defer to the other
+  operand — and raising it is itself an error. The two names are a classic mix-up.
+examples:
+  bad: "raise NotImplemented"
+  good: "raise NotImplementedError"
+---
+id: raise-from-cause
+language: python
+title: "Chain exceptions with `raise ... from`"
+why: "Inside an `except`, `raise NewError(...) from err` preserves the original traceback as the cause; a bare `raise NewError(...)` hides it (or shows a confusing 'During handling of the above…'). A judgment call about wrapping, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you catch one exception and raise another, chain them: `raise ConfigError(...)
+  from err`. The `from` keeps the original as `__cause__` so the traceback shows the real
+  root. Use `from None` to deliberately suppress the context when the original is noise.
+---
+id: avoid-assert-for-validation
+language: python
+title: "Don't use `assert` for runtime validation"
+why: "`assert` statements are stripped entirely when Python runs with `-O`, so any check or side effect they perform silently disappears in optimized deployments. Validate with explicit checks that raise. A correctness rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Reserve `assert` for internal invariants and tests, never for validating arguments,
+  user input, or permissions — `python -O` removes asserts, so the check vanishes in
+  production. Validate with an explicit `if not ok: raise ValueError(...)`. Never put a
+  side effect (like a mutation) inside an `assert`.
+---
+id: prefer-contextlib-suppress
+language: python
+title: "Use `contextlib.suppress` instead of `try/except: pass`"
+why: "`with suppress(FileNotFoundError):` states 'ignore this specific error' in one line; a `try/except SomeError: pass` block is wordier and tempts an over-broad except. A judgment call (ignoring is itself a smell), so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When you genuinely mean to ignore a specific exception, use
+  `with contextlib.suppress(FileNotFoundError): os.remove(path)` rather than
+  `try: ... except FileNotFoundError: pass`. It's shorter and names exactly what's
+  suppressed. (Make sure ignoring really is correct — a silent `pass` often hides a bug.)
+---
+id: narrow-try-blocks
+language: python
+title: "Keep `try` blocks as small as the code that can fail"
+why: "Wrapping a large block in one `try` means the `except` can fire for an unexpected line, masking bugs and catching errors you didn't mean to handle. A structural judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Put only the statement(s) that can raise the handled error inside `try`, and move the
+  rest out. A broad `try` around a whole function lets the `except` swallow failures from
+  unrelated lines, hiding real bugs. Narrow blocks make it clear which operation you're
+  guarding and against what.
+---
+id: prefer-keyword-only-args
+language: python
+title: "Make boolean/optional parameters keyword-only"
+why: "A call like `connect(host, True, False)` is unreadable; declaring those params after `*` forces `connect(host, secure=True, retry=False)` at every call site. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Put flags and optional configuration after a bare `*` so they must be passed by name:
+  `def connect(host, *, secure=True, timeout=30)`. Call sites become self-documenting and
+  you can reorder or add options without breaking positional callers. Keep the one or two
+  obvious required arguments positional.
+---
+id: limit-function-args-py
+language: python
+title: "Replace long parameter lists with a dataclass or options object"
+why: "A function with many positional parameters is hard to call correctly; grouping related arguments into a dataclass or accepting an options object names them at the call site. Where the threshold lies is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function takes more than a handful of parameters — especially several of the
+  same type — bundle the related ones into a small `@dataclass` or accept keyword
+  arguments. `render(RenderOptions(width=80, color=True))` beats five positional values
+  nobody can keep straight. It also lets you add fields without churning every caller.
+---
+id: prefer-small-functions-py
+language: python
+title: "Keep functions small and single-purpose"
+why: "A function that does one thing is easier to name, test, and reuse than a long one mixing concerns. Where to split is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Aim for functions that do one thing at one level of abstraction. When a function grows
+  long or needs comments to separate 'sections', extract those sections into named
+  helpers. Small functions read like prose and are testable in isolation. Don't
+  over-split trivial logic — divide along real seams.
+---
+id: prefer-dataclass
+language: python
+title: "Use `@dataclass` instead of a hand-written data holder"
+why: "`@dataclass` generates `__init__`, `__repr__`, `__eq__`, and more from typed field declarations; writing those by hand is boilerplate that drifts out of sync. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For classes that mainly hold data, use `@dataclass` (or `attrs`/Pydantic for validation)
+  rather than hand-writing `__init__`/`__repr__`/`__eq__`. Declare typed fields and let
+  the decorator generate the plumbing: `@dataclass\nclass Point:\n    x: float\n    y:
+  float`. Add `frozen=True` for immutability and `slots=True` for memory.
+---
+id: prefer-namedtuple-or-dataclass
+language: python
+title: "Give structured records names, not bare tuples/dicts"
+why: "Returning `(name, age, email)` or a loose dict forces callers to remember positions or string keys; a `NamedTuple` or dataclass documents the fields and enables attribute access. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  When a function returns several related values, return a `NamedTuple` or dataclass
+  instead of a positional tuple or untyped dict. `point.x` reads better than `point[0]`
+  and survives field reordering, and the type documents the shape. Reserve bare tuples for
+  truly anonymous, throwaway pairings.
+---
+id: prefer-property-over-getters
+language: python
+title: "Expose computed attributes with `@property`, not get/set methods"
+why: "Python has no need for Java-style `get_x()`/`set_x()`; a `@property` lets callers write `obj.x` while you keep control of access. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Start with a plain public attribute, and when you need computation or validation on
+  access, promote it to a `@property` (and a `@x.setter`) — callers keep writing `obj.x`.
+  Don't write `get_value()`/`set_value()` accessor pairs; they're un-Pythonic and add
+  ceremony the property syntax removes.
+---
+id: prefer-enum
+language: python
+title: "Model fixed sets of constants with `enum.Enum`"
+why: "An `Enum` gives related constants a type, readable `repr`, and iteration; loose module-level string/int constants have none of that and allow invalid values. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Group related constants into an `enum.Enum` (or `IntEnum`/`StrEnum`/`Flag`) instead of
+  scattering `STATUS_PENDING = \"pending\"` module constants. Enums are a real type (so a
+  parameter can be annotated `: Status`), are iterable, and print readably. Reach for
+  `StrEnum` when the values must also behave as plain strings.
+---
+id: prefer-slots
+language: python
+title: "Add `__slots__` (or `slots=True`) to high-volume classes"
+why: "`__slots__` removes the per-instance `__dict__`, cutting memory and speeding attribute access for classes instantiated in bulk. Whether it's worth the lost flexibility is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  For small classes you create in large numbers, declare `__slots__` (or `@dataclass(slots=
+  True)`) to drop the per-instance `__dict__` — less memory, faster attribute access, and
+  it catches typo'd attribute assignments. Skip it when you need dynamic attributes,
+  multiple inheritance flexibility, or it's just a handful of instances.
+---
+id: avoid-stateless-class
+language: python
+title: "Prefer functions/modules over stateless classes"
+why: "A class with no state whose methods are all `@staticmethod` is just a namespace; plain module-level functions are simpler and more Pythonic. A design judgment, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  If a class holds no instance state and exists only to group functions (all
+  `@staticmethod`), make them module-level functions instead — the module *is* the
+  namespace. Classes earn their keep when they bundle state with behavior or need
+  polymorphism. Don't reach for one as a Java-style utility holder.
+---
+id: prefer-super-no-args
+language: python
+title: "Call `super()` without arguments"
+why: "Since Python 3, `super()` infers the class and instance, so `super().__init__()` is the idiom; the explicit `super(ClassName, self)` form is redundant and breaks if the class is renamed. A small style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Write `super().__init__(...)` — the zero-argument form (Python 3) figures out the class
+  and instance automatically. The old `super(MyClass, self).__init__(...)` is verbose and
+  silently wrong if you rename or copy the class. Only spell out the arguments in the rare
+  cases you deliberately skip a level in the MRO.
+---
+id: avoid-mutable-class-attributes
+language: python
+title: "Don't use a mutable class attribute as instance default"
+why: "A list/dict declared at class level is shared by every instance, so one instance's mutation leaks to all — the class-level cousin of the mutable-default-argument bug. Initialize per-instance state in `__init__`. A correctness rule, so it's taught."
+severity: warn
+fix_policy: skill-only
+skill_prose: |
+  Don't declare `items = []` (or `{}`) at class body level intending per-instance state —
+  all instances share that one object, so appending in one shows up in every other.
+  Initialize mutable instance state in `__init__` (`self.items = []`), or use a
+  `@dataclass` field with `field(default_factory=list)`. Reserve class attributes for
+  genuinely shared constants.
+---
+id: prefer-builtin-generics
+language: python
+title: "Use built-in generics (`list[int]`) over `typing.List`"
+why: "Since 3.9 the built-in containers are subscriptable for typing, so `list[int]`/`dict[str, int]` are the idiom; the capitalized `typing.List`/`Dict` aliases are legacy. A style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Annotate with the lowercase built-ins — `list[int]`, `dict[str, User]`, `tuple[int,
+  ...]`, `set[str]` — rather than `typing.List`/`Dict`/`Tuple` (deprecated aliases since
+  3.9). Pull abstract collection types from `collections.abc` (`Sequence`, `Mapping`,
+  `Iterable`) when you want to accept any conforming type.
+---
+id: prefer-union-pipe
+language: python
+title: "Write optional/union types with `|`"
+why: "`X | None` and `int | str` (3.10+) are the current syntax for unions; `Optional[X]` and `Union[int, str]` are the older, wordier forms. A style rule, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Spell unions with `|`: `str | None` instead of `Optional[str]`, `int | str` instead of
+  `Union[int, str]` (Python 3.10+, or under `from __future__ import annotations`). It's
+  less to import and reads naturally. Prefer `X | None` over a bare `Optional` so the
+  nullability is explicit.
+---
+id: prefer-protocol
+language: python
+title: "Use `Protocol` for structural ('duck') typing"
+why: "A `typing.Protocol` lets you type 'anything with these methods' without forcing callers to inherit a base class, matching Python's duck-typing nature. Where it fits is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  To type an interface by shape rather than inheritance, define a `Protocol`:
+  `class Reader(Protocol):\n    def read(self, n: int) -> bytes: ...`. Any object with a
+  matching `read` satisfies it — no explicit subclassing — which fits duck typing and
+  decouples callers from your class hierarchy. Use ABCs when you want enforced inheritance.
+---
+id: prefer-final-constants
+language: python
+title: "Mark true constants with `typing.Final`"
+why: "Annotating a module constant `Final` tells type checkers it must not be reassigned, catching accidental mutation and documenting intent. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Annotate genuine constants with `Final`: `MAX_RETRIES: Final = 3`. Type checkers then
+  flag any reassignment, and readers know the value is fixed. Combine with `Final` in
+  class bodies for constants that subclasses must not override. (It's a checker hint, not
+  runtime enforcement.)
+---
+id: annotate-none-return
+language: python
+title: "Annotate `-> None` on functions that return nothing"
+why: "An explicit `-> None` documents that a function is called for its side effect and lets type checkers flag accidental use of its (None) result. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Give procedures an explicit `-> None` return annotation — `def save(self) -> None:` —
+  so the contract is clear and a checker complains if a caller tries to use the return
+  value. An unannotated function is treated as untyped, not as returning `None`, so the
+  annotation also opts the body into checking.
+---
+id: prefer-pure-functions-py
+language: python
+title: "Prefer pure functions for core logic"
+why: "A function whose result depends only on its arguments — no I/O, no mutation of outside state — is easy to test, cache, and reason about. Where purity is achievable is a judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  Keep core logic in pure functions (same inputs → same output, no side effects) and push
+  I/O and mutation to thin edges. Pure functions test without fixtures or mocks, memoize
+  with `functools.lru_cache`, and compose cleanly. You can't avoid effects entirely;
+  isolate them so the heart of the program stays pure.
+---
+id: prefer-explicit-bool-conversion
+language: python
+title: "Convert to `bool` explicitly when a bool is required"
+why: "When an API or return type demands an actual `bool`, `bool(x)` states the coercion; relying on a truthy non-bool value where `True`/`False` is expected can leak the wrong type. A small judgment call, so it's taught."
+severity: info
+fix_policy: skill-only
+skill_prose: |
+  In a plain `if`, truthiness is enough — `if items:`. But when you must *return* or
+  *store* a real boolean (a `-> bool` function, a serialized flag), coerce explicitly with
+  `bool(x)` rather than returning the underlying list/int/None. It keeps the declared type
+  honest and avoids surprising callers with a non-bool 'boolean'.

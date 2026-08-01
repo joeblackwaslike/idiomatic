@@ -1,12 +1,16 @@
 # idiomatic
 
-A fast, language-abstracted **idiom enforcement framework** for AI coding agents
-(and humans). It makes agents write idiomatic code the first time — a generated
-skill carries every idiom as prose the agent reads before writing code — and
-silently repairs the cases they don't, via a sub-100ms gate that *autofixes*
-mechanically-decidable violations in place instead of bouncing the agent through
-rewrite loops. The same idiom packs back a `check` CLI for pre-commit and CI, so
-humans and agents are held to one ruleset.
+[![CI](https://github.com/joeblackwaslike/idiomatic/actions/workflows/ci.yml/badge.svg)](https://github.com/joeblackwaslike/idiomatic/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/core-Rust-000000?logo=rust)](https://www.rust-lang.org)
+[![Bindings](https://img.shields.io/badge/bindings-Python%20%C2%B7%20Node-blue)](#bindings)
+[![Discord](https://img.shields.io/discord/1486035859747897414?logo=discord&label=Discord&color=5865F2)](https://discord.gg/Fjc9zYHZyV)
+
+> Teach the idiom once. Enforce it in under 100ms. Stop reviewing the same nit forever.
+
+A language-abstracted **idiom enforcement framework** for AI coding agents and humans. A generated skill carries every idiom as prose the agent reads *before* it writes code — and a sub-100ms gate autofixes the mechanically-decidable violations in place, instead of bouncing the agent through rewrite loops.
+
+The same idiom packs back a `check` CLI for pre-commit and CI, so humans and agents are held to one ruleset.
 
 > **Status:** All eight build-order steps are implemented — two reference
 > languages (**Python and TypeScript**), **Python (PyO3)** and **Node (napi)**
